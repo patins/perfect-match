@@ -1,1 +1,1 @@
-# High Performance Weighted $b$-matching
+# High Performance Weighted $$b$$-matching
