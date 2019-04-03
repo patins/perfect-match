@@ -1,0 +1,140 @@
+This is a implementation of a half-approximation algorithm, b-Suitor, for computing a b-Matching
+of maximum weight in a graph with weights on the edges. b-Matching is a generalization of the 
+well-known Matching problem in graphs, where the objective is to choose a subset of M edges in the 
+graph such that at most a specified number b(v) of edges in M are incident on each vertex v. Subject
+to this restriction we maximize the sum of the weights of the edges in M.
+
+CITATION: 
+
+Khan, A., Pothen, A., Mostofa Ali Patwary, M., Satish, N. R., Sundaram, N., 
+Manne, F., & Dubey, P. (2016). Efficient approximation algorithms for weighted b-matching. 
+SIAM Journal on Scientific Computing, 38(5), S593-S619.
+
+CONTACT:
+
+Alex Pothen, apothen@purdue.edu
+Arif Khan,    khan58@purdue.edu
+
+COMPILER:
+
+There are two versions of the code optimized for i) Intel Xeon and ii) Intel Xeon Phi. The system
+configuration for which the code was tested is as follows:
+ 
+Intel Xeon E5-2670 processor based system (part of the Purdue University Community Cluster, 
+called Conte). The system consists of two processors, each with 8 cores running at 
+2.6 GHz (16 cores in total) with 32 KB of L1, 256 KB of L2, 20 MB of unified L3 
+cache, and 64 GB of memory.  The system is also equipped with a 60-core Intel Xeon 
+Phi coprocessor running at 1.1 GHz with 32 KB L1 data cache per core and 512 KB 
+unified L2 cache.  The operating system is Red Hat Enterprise Linux 6.  All the codes 
+were developed using C++ and compiled using the Intel C++ Composer XE 2013 compiler
+(version 1.1.163) using the -O3 flag.
+
+TO COMPILE:
+
+(For Intel Xeon): make
+(For Intel Phi): make -f Makefile_MIC0
+
+INPUT:
+
+The implementation accepts two inputs: 
+i) a graph G in MATRIX MARKET FORMAT (.mtx) and 
+ii) EITHER 
+    a file that has n lines where n is the number of vertices in G. The i th lines contains
+    a single integer representing the b value of i th vertex, i.e., b[i] value. 
+    OR
+    a constant b for all vertices. if b=0 then the 
+    code generates b-value for each vertex v, randomly between 1 and sqrt(d(v)), 
+    where d(v) is the degree of v. 
+
+OUTPUT:
+
+For each vertex v, a priority queue holds the final matching. 
+The user are requested look into bMatching.h for the priority queue data structure, called NODE. 
+An example of the implementation is included in the main function in bMatching.cpp.
+
+HELP:
+
+./bMatching -h 
+
+will show the input argument for the code as follows:
+
+Usage:  -f <problemname> -e <bfilename> -b <bval> -a <algorithm> -v -g
+
+        -f problemname  : file containing graph. Currently inputs .mtx files
+        -e bfilename    : Optional input. (currently not implemented)
+        -b bval         : constant b value if b=0 then randomly generated.
+        -a algorithm    : Algorithm 0:unsorted 1:partial sorted mode (defualt)
+        -t              : bipartite graph 
+        -v              : verbose
+
+TEST EXAMPLE:
+
+A test problem named Ga10As10H30, a quantum chemistry problem, from Florida Matrix Collection 
+has been included with the codes. To experiment with the problem with constant b value = 2,
+the user can issue the following command:
+
+./bMatching -f Ga10As10H30.mtx -b 2 -v
+
+THE CORRECT OUTPUT:
+Graph (113081, 3001276) Reading Done....!! took 3.33379
+bValue is constant for each vertex
+Input Processing Done: 0.0589359
+Iteration: 1 13127 0.027916
+Iteration: 2 12169 0.032059
+Iteration: 3 11661 0.0299821
+Iteration: 4 11134 0.0299768
+Iteration: 5 10493 0.008708
+Iteration: 6 9837 0.00574088
+Iteration: 7 9233 0.00167704
+Iteration: 8 8692 0.004776
+Iteration: 9 8150 0.00137305
+Iteration: 10 7691 0.00363803
+Iteration: 11 7223 0.00496793
+Iteration: 12 6785 0.00113702
+Iteration: 13 6441 0.0195699
+Iteration: 14 6014 0.00925994
+Iteration: 15 5630 0.00198102
+Iteration: 16 5288 0.00801897
+Iteration: 17 4983 0.000844002
+Iteration: 18 4704 0.00909114
+Iteration: 19 4381 0.000795841
+Iteration: 20 4122 0.000824928
+Iteration: 21 3827 0.00077796
+Iteration: 22 3554 0.000600815
+Iteration: 23 3263 0.000573158
+Iteration: 24 2948 0.000545979
+Iteration: 25 2640 0.00588584
+Iteration: 26 2354 0.000392199
+Iteration: 27 2012 0.000389814
+Iteration: 28 1691 0.000370026
+Iteration: 29 1318 0.00881505
+Iteration: 30 985 0.000310898
+Iteration: 31 702 0.00022912
+Iteration: 32 443 0.000185013
+Iteration: 33 234 0.000153065
+Iteration: 34 113 0.000128031
+Iteration: 35 46 8.79765e-05
+Iteration: 36 20 4.91142e-05
+Iteration: 37 8 4.60148e-05
+Iteration: 38 5 4.81606e-05
+Iteration: 39 3 4.41074e-05
+Iteration: 40 2 4.50611e-05
+Iteration: 41 1 4.29153e-05
+Iteration: 42 0 4.29153e-05
+Matching Done....!!
+Initialization Time: 0.0352142
+# of Iteration: 42
+Matching Time: 0.222395
+Total Time: 0.257609
+Matching Weight: 113168
+General Matching Verified..!!
+
+The Iteration lines specifies how many vertices to be processed after that iteration and 
+how much time it took for that iteration. The user can also run the same experiment
+without the -v command which will generate less information.
+
+Graph (113081, 3001276) Reading Done....!! took 2.63565
+bValue is constant for each vertex
+Input Processing Done: 0.042475
+Matching Done....!!
+Total Matching Time: 0.184575
