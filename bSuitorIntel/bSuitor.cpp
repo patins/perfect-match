@@ -229,8 +229,8 @@ int custom_sort_optimized(Edge* verInd, int start, int end,
     int tstart, tend,tpart,k,length;
     int id,p,r,tid;
     double weight;
-    __declspec(aligned(64)) Edge temp;
-    __declspec(aligned(64)) Edge median;
+    __attribute__((aligned(64))) Edge temp;
+    __attribute__((aligned(64))) Edge median;
 
     switch(type)
     {

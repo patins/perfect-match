@@ -1,7 +1,6 @@
-##CC = g++ 
-CC =icpc   
+CC = clang++
 TARGET = bMatching
-CFLAGS =-openmp -O3 
+CFLAGS = -Xpreprocessor -fopenmp -lomp -O3
 LDFLAGS =  $(CFLAGS)
 OBJECTS = \
 	mtxReader.o \

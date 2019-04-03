@@ -14,6 +14,7 @@ using namespace std;
 #define DYN
 #define BSIZE 256
 #define LBUF
+#define __forceinline inline
 
 extern int pivotID;
 extern float pivotW;
