@@ -2,6 +2,6 @@
 
 ## Structure
 - `bSuitorIntel` - bSuitor code from Pothen's paper
-- `perfect_match` - our codebase
+- `perfect_match` - our C++ codebase
 - `data` - weight data
 - `utils` - our utilities
