@@ -1,6 +1,6 @@
 CC = clang++
 TARGET = bMatching
-CFLAGS = -Xpreprocessor -fopenmp -lomp -O3
+CFLAGS = -Xpreprocessor -fopenmp -lomp -O3 -g -ggdb
 LDFLAGS =  $(CFLAGS)
 OBJECTS = \
 	mtxReader.o \
@@ -12,9 +12,9 @@ all: $(TARGET) message
 
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) 
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS)
 
-.cpp.o: 
+.cpp.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
@@ -22,4 +22,3 @@ clean:
 
 message:
 	echo "Executable: $(TARGET) has been created"
-
