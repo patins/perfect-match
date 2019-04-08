@@ -1,42 +1,55 @@
 from gurobipy import *
-import numpy
+import numpy as np
+from scipy.io import mmread
+from collections import defaultdict
 
-
-def generate_indices(n):
-    return [(i, j) for i in range(n) for j in range(i+1, n)]
-
-def build_model_from_graph(graph_file, b):
-    with open(graph_file) as f:
-        lines = f.readlines()
-        edges = lines[2:]
-        n = int(lines[1].split(" ")[0])
-
-    weights = [float(edge.split(" ")[-1]) for edge in edges]
-    
-    build_model(n, b, numpy.array(weights))
- 
-def build_model(n, b, weights=[]):
+def build_model(matrix, b):
+    """
+    Matrix is assumed to be symmetric. Non-zero entries are considered to be matchable.
+    """
     model = Model('mip_match')
-    indices = generate_indices(n)
-    vMatches = model.addVars(indices, vtype=GRB.BINARY, name=['m_{}_{}'.format(i, j) for (i, j) in indices])
 
-    if weights == []:
-        weights = numpy.random.normal(loc=10, size=len(indices))
-    model.setObjective(sum(weights * vMatches.values()), GRB.MINIMIZE)
+    upper_right = [(matrix.row[i], matrix.col[i], matrix.data[i]) for i in range(matrix.getnnz()) if matrix.row[i] < matrix.col[i]]
+    print('Upper right done')
 
-    for i in range(n):
-        match_count = 0
-        for j in range(0, i):
-            match_count += vMatches[(j, i)]
-        for j in range(i+1, n):
-            match_count += vMatches[(i, j)]
-        model.addConstr(match_count >= b, 'mcc_{}'.format(i))
+    vMatches = model.addVars(
+            [(i, j) for (i, j, v) in upper_right],
+            vtype=GRB.BINARY,
+            name=['m_{}_{}'.format(i, j) for (i, j, v) in upper_right])
+
+    print('Matches done')
+
+    model.setObjective(quicksum(np.array([v for (i, j, v) in upper_right]) * vMatches.values()), GRB.MAXIMIZE)
+    
+    print('Objective done')
+
+    match_counts = defaultdict(lambda: 0)
+
+    for (i, j, v) in upper_right:
+        match_counts[i] += vMatches[(i, j)]
+        match_counts[j] += vMatches[(i, j)]
+
+    print('Match counts done')
+
+    for i, match_count in match_counts.items():
+        model.addConstr(match_count <= b, 'mcc_{}'.format(i))
+
+    print('Match constraints done')
 
     model.params.MIPGap = 0
     model.optimize()
 
-    print([idx for idx in indices if vMatches[idx].X == 1])
+    print([(i, j) for (i, j, v) in upper_right if vMatches[(i, j)].X == 1])
 
-
-build_model_from_graph("../data/normal.mtx", 5)
-
+if __name__ == '__main__':
+    import sys
+    if len(sys.argv) != 3:
+        print('Syntax is <mtx_filename> <b>')
+        sys.exit(1)
+    matrix_filename, b = sys.argv[-2:]
+    try:
+        b = int(b)
+    except ValueError:
+        print('Syntax is <mtx_filename> <b>')
+        sys.exit(1)
+    build_model(mmread(matrix_filename), b)

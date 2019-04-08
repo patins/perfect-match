@@ -1,16 +1,18 @@
-import numpy.random
+import numpy as np
+from scipy.sparse import coo_matrix
+from scipy.io import mmwrite
 
-def make_graph(graph_name, graph_size, distribution, *argv):
-    distribution = getattr(numpy.random, distribution)
-    print(distribution)
-    f = open("{}.mtx".format(graph_name), "w")
-    f.write("%%MatrixMarket matrix coordinate pattern symmetric\n")
-    f.write("{} {} {}\n".format(graph_size, graph_size, int(graph_size *(graph_size-1)/2)))
-    
-    for i in range(graph_size):
-        for j in range(i+1, graph_size):
-            f.write("{} {} {}\n".format(i, j, distribution(*argv)))
+def make_graph(graph_name, graph_size, distribution_name, **dist_kwargs):
+    seed = 42
+    np.random.seed(seed)
+    distribution = getattr(np.random, distribution_name)
+    trow = np.array([i for i in range(graph_size) for j in range(i+1, graph_size)])
+    tcol = np.array([j for i in range(graph_size) for j in range(i+1, graph_size)])
+    row = np.append(trow, tcol)
+    col = np.append(tcol, trow)
+    dist_kwargs['size'] = len(trow)
+    values = np.tile(distribution(**dist_kwargs), 2)
+    matrix = coo_matrix((values, (row, col)), shape=(graph_size, graph_size))
+    mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
 
-    f.close()
-
-make_graph("normal", 100, "normal", 5, 1)
+make_graph("normal", 100, "normal", loc=5, scale=1)
