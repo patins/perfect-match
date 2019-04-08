@@ -22,7 +22,7 @@ double greedy(sparseMatrix* matrix, int B) {
   for(int i = 0; i < matrix->numEdges; i++){
     int r = matrix->edges[i].row;
     int c = matrix->edges[i].column;
-    if(numMatches[r]<B && numMatches[c]<B){
+    if(c != r && numMatches[r]<B && numMatches[c]<B){
          matches[r][numMatches[r]] = c;
          matches[c][numMatches[c]] = r;
          numMatches[r]++ ;
@@ -40,10 +40,11 @@ int main(int argc, char **argv) {
   }
   auto start = high_resolution_clock::now();
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
-  int totalWeight = greedy(matrix, atoi(argv[2]));
+  double totalWeight = greedy(matrix, atoi(argv[2]));
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<microseconds>(stop - start);
   cout << "Time taken by function: "
     << duration.count() << " microseconds" << endl;
+  cout << "Weight " << totalWeight << endl;
   return 1;
 }
