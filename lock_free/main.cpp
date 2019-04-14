@@ -7,6 +7,9 @@
 #include <chrono>
 #include "../utils/mtxReader.h"
 #include <queue>
+#include <numeric>
+#include <vector>
+
 using namespace std;
 using namespace std::chrono;
 
@@ -14,52 +17,145 @@ class compareWeight
 {
 public:
     bool operator()(pair<int,int> n1,pair<int,int> n2) {
-        return n1.second>n2.second;
+        return n1.second<n2.second;
     }
 };
 
+int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
+  /*
+  Method that returns an array of indices of the x smallest elements of a given row of a matrix.
+
+  Parameters:
+    matrix - a dense matrix
+    row - the row number of interest
+    x - the number of smallest elements of the array
+
+  Returns:
+    indices - a pointer to an array of indices at which the smallest elements of the array occur.
+
+  */
+
+  //We find the smallest element of the array x times, each time maxing out the minimum
+  //element out and saving the value in a temp array so we can find the x-smallest elements.
+  int indices[x];
+  int temp[x];
+  for(int i=0; i< x; i++){
+    indices[i] = max_element(matrix->data[row].begin(), matrix->data[row].end()) - matrix->data[row].begin();
+    temp[i] = matrix[row][indices[i]];
+    matrix->data[row][indices[i]] = LONG_MAX;
+  }
+ 
+  //We restore the original values of the array.
+  for(int i=0; i<x; i++){
+    arr[indices[i]] = temp[i];
+  }
+
+  free(temp);
+  return &indices;
+}
+
+int* get_smallest_elements_indices_col(denseMatrix* matrix, int col, list<int>* candidateVertices){
+  /*
+  Method that returns an array of vertices (from a list of candidate vertices) that correspond to the weights of the edges from vertex i to vertex col in sorted order.
+
+  Parameters:
+    matrix - a dense matrix of weights
+    col- the col number of interest
+    candidateVertices- a list of vertices
+
+  Returns:
+    indices - a pointer to an array of indices at which the smallest elements of the array occur.
+
+  */
+
+  //We find the minimum element of the array x times, each time maxing out the minimum
+  //element out and saving the value in a temp array so we can find the x-smallest elements.
+  int indices[x];
+  double arr[x];
+  int temp[x];
+
+  count = 0
+  for(int i: candidateEdges){
+    arr[count] = matrix->data[i][col]; //add candidate edge weights to an array
+    temp[count] = i; //keep track of corresponding vertices
+    count +=1;
+  } 
+
+  for(int i=0; i< candidateVertices.size(); i++){
+    arr_min_index = min_element(arr.begin(), arr.end()) - arr.begin(); //maximum weight index in array
+    indices[i] = temp[arr_min_index]; //find corresponding vertex
+    arr[arr_min_index] = LONG_MAX; //max out weight
+  }
+
+  free(arr); 
+  return &indices;
+}
 
 double lock_free_matching(denseMatrix* matrix, int B) {
-  sort(matrix->edges, matrix->edges + matrix->numEdges, compareEdges);
-  int* numMatches = new int[matrix->numRows];
-  int** matches = (int**) malloc(matrix->numRows * sizeof(int*));
-
-  //priority of queue of vertices that do not have at least B matches yet
+  //priority queue of vertices that do not have at least B matches yet
   priority_queue<int> vertices_to_match;
 
   //array of pointers to the heap of matches for each vertex
   priority_queue<pair<int,int>,vector<pair<int,int>>,CompareWeight>* vertex_heap_pointers[matrix-> numRows];
   
+  //array of pointers to store B-largest edges sorted by weight for each vertex
+  int* vertex_sorted_edges[matrix-> numRows];
+  list<int>* second_vertex_sorted_edges[matrix->numCols];
+
   //there's definitely a more efficient way to add the numbers 0
   //through numRows to a queue and make these heaps 
   for(int i = 0; i< matrix -> numRows; i++){
     vertices_to_match.push(i);
+    vertex_sorted_edges[i] = (int*) malloc(B * sizeof(int));
   }
- 
+
+  int how_far[matrix->numRows]; 
   while(!vertices_to_match.empty()){
+
+  //generate candidate matches for first vertex
    #pragma omp parallel for
-   for(int i= 0; i< matrix-> numRows; i++){
-    
+   for(int i: vertices_to_match){
+     int* candidate_vertices = get_smallest_elements_indices_row(matrix, i,  B - &vertex_heap_pointers[i].size());
+     vertex_sorted_edges[i] = indices;
+     for(int j: candidate_vertices){
+       second_vertex_sorted_edges.push_back(i);
+     }
    }
 
-  } 
-  for(int i = 0; i < matrix->numRows ; i++){
-    numMatches[i] = 0;
-    matches[i] = (int*) malloc(B * sizeof(int));
-  }
-  double totalWeight = 0;
-  for(int i = 0; i < matrix->numEdges; i++){
-    int r = matrix->edges[i].row;
-    int c = matrix->edges[i].column;
-    if(c != r && numMatches[r]<B && numMatches[c]<B){
-         matches[r][numMatches[r]] = c;
-         matches[c][numMatches[c]] = r;
-         numMatches[r]++ ;
-         numMatches[c]++ ;
-         totalWeight += matrix->edges[i].weight;
+ //sort candidate matches by second vertex
+   #pragma omp parallel for
+   for(int j=0; j< matrix-> numCols; j++){
+     int* candidate_vertices_second = get_smallest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j]);
+   }
+   
+  // can this be parallelized?  #pragma omp parallel for
+  
+  priority_queue<int> new_vertices_to_match;
+
+  //update first and second vertex heaps
+   for(int j=0; j< matrix-> numCols; j++){
+     for(int i: second_candidate_indices){
+       if(&vertex_heap_pointers[j].empty()){
+         &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
+         &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
        }
+       else if(matrix->data[i][j] < &vertex_heap_pointers[j].front()){
+         removed =  &vertex_heap_pointers[j].pop();
+         &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
+         new_vertices_to_match.push(removed);
+         &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
+       }
+     }
+   }
+
+   vertices_to_match = new_vertices_to_match;
+  } 
+
+  match_weight = 0;
+  for(int i=0; i < matrix->numRows; i++){
+    &vertex_heap_pointers[i]
+  
   }
-  return totalWeight;
 }
 
 int main(int argc, char **argv) {
