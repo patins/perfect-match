@@ -23,7 +23,7 @@ public:
 
 int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
   /*
-  Method that returns an array of indices of the x smallest elements of a given row of a matrix.
+  Method that returns an array of indices of the x largest elements of a given row of a matrix.
 
   Parameters:
     matrix - a dense matrix
@@ -35,14 +35,14 @@ int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
 
   */
 
-  //We find the smallest element of the array x times, each time maxing out the minimum
-  //element out and saving the value in a temp array so we can find the x-smallest elements.
+  //We find the largest element of the array x times, each time zeroing out the maximum
+  //element out and saving the value in a temp array so we can find the x-largest elements.
   int indices[x];
   int temp[x];
   for(int i=0; i< x; i++){
     indices[i] = max_element(matrix->data[row].begin(), matrix->data[row].end()) - matrix->data[row].begin();
     temp[i] = matrix[row][indices[i]];
-    matrix->data[row][indices[i]] = LONG_MAX;
+    matrix->data[row][indices[i]] = 0;
   }
  
   //We restore the original values of the array.
@@ -54,7 +54,7 @@ int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
   return &indices;
 }
 
-int* get_smallest_elements_indices_col(denseMatrix* matrix, int col, list<int>* candidateVertices){
+int* get_largest_elements_indices_col(denseMatrix* matrix, int col, list<int>* candidateVertices){
   /*
   Method that returns an array of vertices (from a list of candidate vertices) that correspond to the weights of the edges from vertex i to vertex col in sorted order.
 
@@ -68,8 +68,8 @@ int* get_smallest_elements_indices_col(denseMatrix* matrix, int col, list<int>* 
 
   */
 
-  //We find the minimum element of the array x times, each time maxing out the minimum
-  //element out and saving the value in a temp array so we can find the x-smallest elements.
+  //We find the maximum element of the array repeatedly, each time zeroing out the maximum 
+  //element out and saving the value in a temp array so we can find the x-largest elements.
   int indices[x];
   double arr[x];
   int temp[x];
@@ -82,9 +82,9 @@ int* get_smallest_elements_indices_col(denseMatrix* matrix, int col, list<int>* 
   } 
 
   for(int i=0; i< candidateVertices.size(); i++){
-    arr_min_index = min_element(arr.begin(), arr.end()) - arr.begin(); //maximum weight index in array
-    indices[i] = temp[arr_min_index]; //find corresponding vertex
-    arr[arr_min_index] = LONG_MAX; //max out weight
+    arr_max_index = max_element(arr.begin(), arr.end()) - arr.begin(); //maximum weight index in array
+    indices[i] = temp[arr_max_index]; //find corresponding vertex
+    arr[arr_max_index] = 0; //zero  out weight
   }
 
   free(arr); 
@@ -92,6 +92,11 @@ int* get_smallest_elements_indices_col(denseMatrix* matrix, int col, list<int>* 
 }
 
 double lock_free_matching(denseMatrix* matrix, int B) {
+  /*
+  algorithm for finding a bipartite B-matching that maximizes 
+  the weight of the matching. each vertex is matched with at most B 
+  other vertices
+  */
   //priority queue of vertices that do not have at least B matches yet
   priority_queue<int> vertices_to_match;
 
@@ -115,7 +120,7 @@ double lock_free_matching(denseMatrix* matrix, int B) {
   //generate candidate matches for first vertex
    #pragma omp parallel for
    for(int i: vertices_to_match){
-     int* candidate_vertices = get_smallest_elements_indices_row(matrix, i,  B - &vertex_heap_pointers[i].size());
+     int* candidate_vertices = get_largest_elements_indices_row(matrix, i,  B - &vertex_heap_pointers[i].size());
      vertex_sorted_edges[i] = indices;
      for(int j: candidate_vertices){
        second_vertex_sorted_edges.push_back(i);
@@ -125,7 +130,7 @@ double lock_free_matching(denseMatrix* matrix, int B) {
  //sort candidate matches by second vertex
    #pragma omp parallel for
    for(int j=0; j< matrix-> numCols; j++){
-     int* candidate_vertices_second = get_smallest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j]);
+     int* candidate_vertices_second = get_largest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j]);
    }
    
   // can this be parallelized?  #pragma omp parallel for
