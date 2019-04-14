@@ -109,7 +109,7 @@ double lock_free_matching(denseMatrix* matrix, int B) {
     vertex_sorted_edges[i] = (int*) malloc(B * sizeof(int));
   }
 
-  int how_far[matrix->numRows]; 
+  match_weight = 0;
   while(!vertices_to_match.empty()){
 
   //generate candidate matches for first vertex
@@ -138,24 +138,23 @@ double lock_free_matching(denseMatrix* matrix, int B) {
        if(&vertex_heap_pointers[j].empty()){
          &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
          &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
+         match_weight += matrix -> data[i][j];
        }
        else if(matrix->data[i][j] < &vertex_heap_pointers[j].front()){
          removed =  &vertex_heap_pointers[j].pop();
          &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
-         new_vertices_to_match.push(removed);
+         new_vertices_to_match.push(removed[0]);
          &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
+         match_weight += matrix->data[i][j] - removed[1];
        }
      }
    }
 
-   vertices_to_match = new_vertices_to_match;
-  } 
-
-  match_weight = 0;
-  for(int i=0; i < matrix->numRows; i++){
-    &vertex_heap_pointers[i]
-  
+    vertices_to_match = new_vertices_to_match;
   }
+
+    return match_weight;
+
 }
 
 int main(int argc, char **argv) {
