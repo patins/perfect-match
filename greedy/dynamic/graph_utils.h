@@ -15,7 +15,7 @@ typedef struct sparseEdge {
   bool matched;
 } sparseEdge;
 
-// Comparator for sparseEdge priority priority_queue
+// Comparator for sparseEdge priority as a min-heap (lowest weights at top)
 typedef struct compareEdges_queue {
     bool operator()(sparseEdge const& e1, sparseEdge const& e2)
     {
@@ -25,7 +25,7 @@ typedef struct compareEdges_queue {
 
 // Vertex component to for dynamic updates
 typedef struct vertex {
-  sparseEdge* adjacent_edges; // TODO: change to a BST
+  vector<sparseEdge>* adjacent_edges; // TODO: change to a BST
   int adjacent_edge_count;
   priority_queue<sparseEdge, vector<sparseEdge>, compareEdges_queue>* matched_edges;
   int matched_edge_count;
@@ -38,8 +38,10 @@ typedef struct sparseMatrix {
   int numEdges;
   int numRows;
   int numColumns;
+  double totalWeight;
 } sparseMatrix;
 
 denseMatrix read_symmetric_dense_matrix_file(char *filename);
 sparseMatrix* read_symmetric_sparse_matrix_file(char *filename);
 bool compareEdges(sparseEdge a, sparseEdge b);
+bool compareEdgesIncreasing(sparseEdge a, sparseEdge b);

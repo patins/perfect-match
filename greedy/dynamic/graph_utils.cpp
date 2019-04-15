@@ -7,6 +7,9 @@
 #include <queue>
 #include "graph_utils.h"
 
+bool compareEdges(sparseEdge a, sparseEdge b) { return a.weight > b.weight; }
+bool compareEdgesIncreasing(sparseEdge a, sparseEdge b) { return a.weight < b.weight; }
+
 denseMatrix read_symmetric_dense_matrix_file(char *filename) {
   std::ifstream fin(filename);
   int M, N, L;
@@ -53,7 +56,7 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
     v.adjacent_edge_count = 0;
     v.matched_edge_count = 0;
     v.matched_edges = new std::priority_queue<sparseEdge, std::vector<sparseEdge>, compareEdges_queue>;
-    v.adjacent_edges = new sparseEdge[M]; // TODO: can save memory or use a BST
+    v.adjacent_edges = new std::vector<sparseEdge>; // TODO: can save memory or use a BST
     matrixVertices[m] = v;
   }
 
@@ -77,13 +80,20 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
     // Add edge to its endpoint vertices
     vertex src = matrixVertices[m-1];
     vertex dst = matrixVertices[n-1];
-    src.adjacent_edges[src.adjacent_edge_count] = edge;
-    dst.adjacent_edges[dst.adjacent_edge_count] = edge;
+    src.adjacent_edges->push_back(edge);
+    dst.adjacent_edges->push_back(edge);
     src.adjacent_edge_count++;
     dst.adjacent_edge_count++;
   }
 
   fin.close();
+
+  // Step 3: Make sure adjacency list is sosrted per vertex and wrap in struct
+  for (int m = 0; m < M; m++) {
+    sort(matrixVertices[m].adjacent_edges->begin(),
+      matrixVertices[m].adjacent_edges->end(),
+      compareEdgesIncreasing);
+  }
 
   sparseMatrix* matrix = (sparseMatrix*) malloc(sizeof(sparseMatrix));
   matrix->edges = matrixEdges;
@@ -91,8 +101,6 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
   matrix->numEdges = L;
   matrix->numRows = M;
   matrix->numColumns = N;
+  matrix->totalWeight = 0.0;
   return matrix;
 }
-
-bool compareEdges(sparseEdge a, sparseEdge b) { return a.weight > b.weight; }
-

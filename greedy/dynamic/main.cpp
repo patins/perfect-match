@@ -38,8 +38,62 @@ double greedy_dynamic_match(sparseMatrix* matrix, int B) {
          totalWeight += edge.weight;
     }
   }
+  matrix->totalWeight = totalWeight;
   return totalWeight;
 }
+
+// double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
+//   assert(!edge->matched);
+//   vertex src = matrix->vertices[new_edge->row];
+//   vertex dst = matrix->vertices[new_edge->column];
+//   int src_num_matches = src.matched_edge_count;
+//   int dst_num_matches = dst.matched_edge_count;
+//   sparseEdge src_lowest_edge = src.matched_edges->top();
+//   sparseEdge dst_lowest_edge = dst.matched_edges->top();
+//   double new_edge_weight = new_edge->weight;
+//   bool scan_required = false;
+//
+//   // TODO: avoid computation by separating conditions into bools
+//   if (src_num_matches < B && dst_num_matches < B) {
+//     // Add new edge to matching!
+//     src.matched_edges->push(new_edge);
+//     dst.matched_edges->push(new_edge);
+//     src.matched_edge_count++;
+//     dst.matched_edge_count++;
+//     matrix->totalWeight += new_edge_weight;
+//   } else if (src_num_matches == B && dst_num_matches < B && new_edge_weight > src_lowest_edge.weight ) {
+//     // Remove match from src, add new edge
+//     scan_required = true;
+//     sparseEdge edgeToRemove =
+//
+//   } else if (dst_num_matches == B && src_num_matches < B && new_edge_weight > dst_lowest_edge.weight ) {
+//     // Remove match from dst, add new edge
+//     scan_required = true;
+//   } else if (src_num_matches == B && dst_num_matches == B && new_edge_weight > src_lowest_edge.weight && new_edge_weight > dst_lowest_edge.weight) {
+//     // Remove match from both src and dst, add new edge
+//     scan_required = true;
+//     int other_endpoint = src.adjacent_edges->front();
+//     src.adjacent_edges.remove()
+//   }
+//
+//   if (scan_required) {
+//     // Do the scan
+//   }
+//
+//
+//   )
+//
+//   // Do final updates
+//   src.adjacent_edges.push_back(new_edge);
+//   dst.adjacent_edges.push_back(new_edge);
+//   src.adjacent_edge_count++;
+//   dst.adjacent_edge_count++;
+//   sort(src.adjacent_edges->begin(), src.adjacent_edges->end(), compareEdgesIncreasing);
+//   sort(dst.adjacent_edges->begin(), dst.adjacent_edges->end(), compareEdgesIncreasing);
+//   matrix->vertices[new_edge->row] = src;
+//   matrix->vertices[new_edge->column] = dst;
+//   return matrix->totalWeight;
+// }
 
 int main(int argc, char **argv) {
   if (argc == 2) {
@@ -48,13 +102,12 @@ int main(int argc, char **argv) {
   }
   auto start = high_resolution_clock::now();
 
-  // Algorithm starts here:
+  // Algorithm starts here -----------------
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
-  // matching M;
   double totalWeight = greedy_dynamic_match(matrix, atoi(argv[2]));
-  // double totalWeight = update_greedy
 
-  // End algorithm
+  // End algorithm -------------------------
+
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<microseconds>(stop - start);
   cout << "Time taken by function: "
@@ -62,37 +115,3 @@ int main(int argc, char **argv) {
   cout << "Weight " << totalWeight << endl;
   return 1;
 }
-
-//
-// double greedy_updateable(sparseMatrix* matrix, int B, matching* M) {
-//   M->incoming_matches = new priority_queue<
-//     sparseEdge,
-//     vector<sparseEdge>,
-//     compareEdges_queue
-//   >[matrix->numRows];
-//   sort(matrix->edges, matrix->edges + matrix->numEdges, compareEdges);
-//   int* numMatches = new int[matrix->numRows];
-//   int** matches = new int*[matrix->numRows];
-//   for(int i = 0; i < matrix->numRows ; i++){
-//     numMatches[i] = 0;
-//     matches[i] = new int[matrix->numRows];
-//   }
-//   double totalWeight = 0;
-//   for(int i = 0; i < matrix->numEdges; i++){
-//     int r = matrix->edges[i].row;
-//     int c = matrix->edges[i].column;
-//     if(c != r && numMatches[r]<B && numMatches[c]<B){
-//          matches[r][c] = 1;
-//          matches[c][r] = 1;
-//          numMatches[r]++ ;
-//          numMatches[c]++ ;
-//          totalWeight += matrix->edges[i].weight;
-//          M->incoming_matches[r].push(matrix->edges[i]);
-//          M->incoming_matches[c].push(matrix->edges[i]);
-//        }
-//   }
-//   M->outgoing_matches = matches;
-//   M->numNodes = matrix->numRows;
-//
-//   return totalWeight;
-// }
