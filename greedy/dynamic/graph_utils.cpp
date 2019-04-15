@@ -52,9 +52,8 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
     vertex v;
     v.adjacent_edge_count = 0;
     v.matched_edge_count = 0;
-    std::priority_queue<sparseEdge, std::vector<sparseEdge>, compareEdges_queue> p;
-    v.matched_edges = &p;
-    v.adjacent_edges = new sparseEdge[M]; // TODO: can save memory or use a BST 
+    v.matched_edges = new std::priority_queue<sparseEdge, std::vector<sparseEdge>, compareEdges_queue>;
+    v.adjacent_edges = new sparseEdge[M]; // TODO: can save memory or use a BST
     matrixVertices[m] = v;
   }
 
