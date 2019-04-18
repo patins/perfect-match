@@ -9,6 +9,7 @@
 #include <queue>
 #include <numeric>
 #include <vector>
+#include <list>
 
 using namespace std;
 using namespace std::chrono;
@@ -21,7 +22,7 @@ public:
     }
 };
 
-int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
+void get_largest_elements_indices_row(denseMatrix* matrix, int row, int x, int* indices){
   /*
   Method that returns an array of indices of the x largest elements of a given row of a matrix.
 
@@ -37,24 +38,17 @@ int* get_largest_elements_indices_row(denseMatrix* matrix, int row, int x){
 
   //We find the largest element of the array x times, each time zeroing out the maximum
   //element out and saving the value in a temp array so we can find the x-largest elements.
-  int indices[x];
-  int temp[x];
+  double arr[matrix->numColumns];
+  for(int j=0; j < matrix->numColumns; j++){
+      arr[j] = matrix->data[row * matrix->numColumns + j];
+  }
   for(int i=0; i< x; i++){
-    indices[i] = max_element(matrix->data[row].begin(), matrix->data[row].end()) - matrix->data[row].begin();
-    temp[i] = matrix[row][indices[i]];
-    matrix->data[row][indices[i]] = 0;
+    indices[i] = max_element(arr, arr + matrix-> numColumns) - arr;
+    arr[i] = 0;
   }
- 
-  //We restore the original values of the array.
-  for(int i=0; i<x; i++){
-    arr[indices[i]] = temp[i];
-  }
-
-  free(temp);
-  return &indices;
 }
 
-int* get_largest_elements_indices_col(denseMatrix* matrix, int col, list<int>* candidateVertices){
+void  get_largest_elements_indices_col(denseMatrix* matrix, int col, list<int>* candidateVertices, int * indices){
   /*
   Method that returns an array of vertices (from a list of candidate vertices) that correspond to the weights of the edges from vertex i to vertex col in sorted order.
 
@@ -70,25 +64,24 @@ int* get_largest_elements_indices_col(denseMatrix* matrix, int col, list<int>* c
 
   //We find the maximum element of the array repeatedly, each time zeroing out the maximum 
   //element out and saving the value in a temp array so we can find the x-largest elements.
-  int indices[x];
-  double arr[x];
-  int temp[x];
+  list<int> candidates = *candidateVertices;
+  int size = (int) candidates.size();
+  double arr[size];
+  int temp[size];
 
-  count = 0
-  for(int i: candidateEdges){
-    arr[count] = matrix->data[i][col]; //add candidate edge weights to an array
+  int count = 0;
+  for(int i: candidates){
+    arr[count] = matrix->data[i * matrix-> numColumns + col]; //add candidate edge weights to an array
     temp[count] = i; //keep track of corresponding vertices
     count +=1;
   } 
 
-  for(int i=0; i< candidateVertices.size(); i++){
-    arr_max_index = max_element(arr.begin(), arr.end()) - arr.begin(); //maximum weight index in array
+  for(int i=0; i< size; i++){
+    int arr_max_index = max_element(arr, arr + size) - arr; //maximum weight index in array
     indices[i] = temp[arr_max_index]; //find corresponding vertex
     arr[arr_max_index] = 0; //zero  out weight
   }
 
-  free(arr); 
-  return &indices;
 }
 
 double lock_free_matching(denseMatrix* matrix, int B) {
@@ -98,59 +91,72 @@ double lock_free_matching(denseMatrix* matrix, int B) {
   other vertices
   */
   //priority queue of vertices that do not have at least B matches yet
-  priority_queue<int> vertices_to_match;
+  vector<int> vertices_to_match;
+  make_heap(vertices_to_match.begin(), vertices_to_match.end());
 
   //array of pointers to the heap of matches for each vertex
-  priority_queue<pair<int,int>,vector<pair<int,int>>,CompareWeight>* vertex_heap_pointers[matrix-> numRows];
+  priority_queue<pair<int,double>,vector<pair<int,double> >,compareWeight>* vertex_heap_pointers[matrix-> numRows];
   
   //array of pointers to store B-largest edges sorted by weight for each vertex
   int* vertex_sorted_edges[matrix-> numRows];
-  list<int>* second_vertex_sorted_edges[matrix->numCols];
+  list<int>* second_vertex_sorted_edges[matrix->numRows];
 
   //there's definitely a more efficient way to add the numbers 0
   //through numRows to a queue and make these heaps 
   for(int i = 0; i< matrix -> numRows; i++){
-    vertices_to_match.push(i);
+    vertices_to_match.push_back(i);
+    push_heap(vertices_to_match.begin(), vertices_to_match.end());
     vertex_sorted_edges[i] = (int*) malloc(B * sizeof(int));
   }
 
-  match_weight = 0;
+  double match_weight = 0;
   while(!vertices_to_match.empty()){
 
   //generate candidate matches for first vertex
    #pragma omp parallel for
-   for(int i: vertices_to_match){
-     int* candidate_vertices = get_largest_elements_indices_row(matrix, i,  B - &vertex_heap_pointers[i].size());
-     vertex_sorted_edges[i] = indices;
-     for(int j: candidate_vertices){
-       second_vertex_sorted_edges.push_back(i);
-     }
-   }
+       for(int i: vertices_to_match){
+           int num_candidates = B - (*vertex_heap_pointers[i]).size();
+           int* candidate_vertices = (int*) malloc(num_candidates * sizeof(int)); 
+           get_largest_elements_indices_row(matrix, i, num_candidates, candidate_vertices);
+           vertex_sorted_edges[i] = candidate_vertices;
+           for(int j=0; j< num_candidates; j++){
+               (*second_vertex_sorted_edges[candidate_vertices[j]]).push_back(i);
+           }
+       }
 
- //sort candidate matches by second vertex
-   #pragma omp parallel for
-   for(int j=0; j< matrix-> numCols; j++){
-     int* candidate_vertices_second = get_largest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j]);
-   }
+       int** second_candidate_vertices = (int**) malloc(matrix->numColumns * sizeof(int*));
+ 
+       //sort candidate matches by second vertex
+       #pragma omp parallel for
+       for(int j=0; j< matrix-> numColumns; j++){
+           int size = (*second_vertex_sorted_edges[j]).size();
+           second_candidate_vertices[j] = (int *) malloc(sizeof(int) * size);
+           get_largest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j], second_candidate_vertices[j]);
+       }
    
   // can this be parallelized?  #pragma omp parallel for
   
-  priority_queue<int> new_vertices_to_match;
+  vector<int> new_vertices_to_match;
+  make_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
 
   //update first and second vertex heaps
-   for(int j=0; j< matrix-> numCols; j++){
-     for(int i: second_candidate_indices){
-       if(&vertex_heap_pointers[j].empty()){
-         &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
-         &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
-         match_weight += matrix -> data[i][j];
+   for(int j=0; j< matrix-> numColumns; j++){
+     for(int i=0; i < (*second_vertex_sorted_edges[j]).size(); i++){
+       int k = second_candidate_vertices[j][i]; 
+       int index = k * matrix-> numColumns + j;
+       if((*vertex_heap_pointers[j]).empty()){
+         (*vertex_heap_pointers[k]).push(make_pair(i, matrix->data[index]));
+         (*vertex_heap_pointers[k]).push(make_pair(j, matrix->data[index]));
+         match_weight += matrix -> data[index];
        }
-       else if(matrix->data[i][j] < &vertex_heap_pointers[j].front()){
-         removed =  &vertex_heap_pointers[j].pop();
-         &vertex_heap_pointers[j].push(make_pair(i, matrix->data[i][j]));
-         new_vertices_to_match.push(removed[0]);
-         &vertex_heap_pointers[i].push(make_pair(j, matrix->data[i][j]));
-         match_weight += matrix->data[i][j] - removed[1];
+       else if(matrix->data[index] < (*vertex_heap_pointers[j]).top().second){
+         pair<int, double> removed = (*vertex_heap_pointers[j]).top();
+         (*vertex_heap_pointers[j]).pop();
+         (*vertex_heap_pointers[j]).push(make_pair(k, matrix->data[index]));
+         new_vertices_to_match.push_back(removed.first);
+         push_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
+         (*vertex_heap_pointers[k]).push(make_pair(j, matrix->data[index]));
+         match_weight += matrix->data[index] - removed.second;
        }
      }
    }
@@ -162,13 +168,14 @@ double lock_free_matching(denseMatrix* matrix, int B) {
 
 }
 
+
 int main(int argc, char **argv) {
   if (argc == 2) {
     cout << "Input file and number of matches not specified.";
     return 0;
   }
   auto start = high_resolution_clock::now();
-  denseMatrix matrix = read_symmetric_sparse_matrix_file(argv[1]);
+  denseMatrix matrix = read_symmetric_dense_matrix_file(argv[1]);
   double totalWeight = lock_free_matching(&matrix, atoi(argv[2]));
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<microseconds>(stop - start);
