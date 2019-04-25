@@ -48,6 +48,8 @@ double greedy_dynamic_match(sparseMatrix* matrix, int B) {
 
 void add_edge(sparseEdge* e, sparseMatrix* matrix){
   assert(!(e->matched));
+  cout << "added edge " << e->row << " to " << e->column;
+  cout << " weight " << e->weight << endl;
   vertex* src = matrix->vertices[e->row];
   vertex* dst = matrix->vertices[e->column];
   src->matched_edges->insert(e);
@@ -60,6 +62,8 @@ void add_edge(sparseEdge* e, sparseMatrix* matrix){
 
 void remove_edge(sparseEdge*e, sparseMatrix* matrix){
   assert(e->matched);
+  cout << "removed edge "  << e->row << " to " << e->column;
+  cout << " weight " << e->weight << endl;
   vertex* src = matrix->vertices[e->row];
   vertex* dst = matrix->vertices[e->column];
   src->matched_edges->erase(e);
@@ -146,6 +150,10 @@ void loop_matching_from_vertex_double(vertex* v, vertex* u, sparseMatrix* matrix
   curr_e_2 = max_weight_unmatched_edge(curr_v_2, matrix,B);
 
   while (curr_e_1 != (sparseEdge*) NULL && curr_e_2 != (sparseEdge*) NULL){
+
+    cout << "edge 1 from " << curr_e_1->row << " to " << curr_e_1->column << " weight " <<curr_e_1->weight << endl;
+    cout << "edge 2 from " << curr_e_2->row << " to " << curr_e_2->column << " weight " <<curr_e_2->weight << endl;
+
     if(curr_e_1 != (sparseEdge*) NULL && curr_e_2 == (sparseEdge*) NULL){
         add_edge(curr_e_1, matrix);
         curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
@@ -252,7 +260,7 @@ double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
       new_edge_weight > src_lowest_edge->weight &&
        new_edge_weight > dst_lowest_edge->weight) {
     // Remove match from both src and dst, add new edge
-    cout << "both collision";
+    cout << "both collision" << endl;
     add_edge(new_edge, matrix);
     loop_matching_from_vertex_double(src,dst, matrix, B);
   //  loop_matching_from_vertex(dst, matrix, B);
@@ -279,7 +287,7 @@ int main(int argc, char **argv) {
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
   sparseEdge* new_edge = new sparseEdge;
   new_edge->row = 16-1;
-  new_edge->column = 2-1;
+  new_edge->column = 3-1;
   new_edge->matched = false;
   new_edge->weight = 8.852731490654721e+00;
 
