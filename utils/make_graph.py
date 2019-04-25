@@ -13,6 +13,8 @@ def make_graph(graph_name, graph_size, distribution_name, **dist_kwargs):
     dist_kwargs['size'] = len(trow)
     values = np.tile(distribution(**dist_kwargs), 2)
     matrix = coo_matrix((values, (row, col)), shape=(graph_size, graph_size))
-    mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
+    mmwrite('../data/{}.mtx'.format(graph_name),
+     matrix,
+      "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
 
 make_graph("normal", 100, "normal", loc=5, scale=1)

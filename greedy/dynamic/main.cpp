@@ -14,6 +14,8 @@
 using namespace std;
 using namespace std::chrono;
 
+#define LOWEST_MATCHED_EDGE(x) *(x->matched_edges->begin())
+
 double greedy_dynamic_match(sparseMatrix* matrix, int B) {
   sort(matrix->edges, matrix->edges + matrix->numEdges, compareEdges);
   double totalWeight = 0;
@@ -44,274 +46,179 @@ double greedy_dynamic_match(sparseMatrix* matrix, int B) {
   return totalWeight;
 }
 
+void add_edge(sparseEdge* e, sparseMatrix* matrix){
+  assert(!(e->matched));
+  vertex* src = matrix->vertices[e->row];
+  vertex* dst = matrix->vertices[e->column];
+  src->matched_edges->insert(e);
+  dst->matched_edges->insert(e);
+  src->matched_edge_count++;
+  dst->matched_edge_count++;
+  matrix->totalWeight += e->weight;
+  e->matched = true;
+}
+
+void remove_edge(sparseEdge*e, sparseMatrix* matrix){
+  assert(e->matched);
+  vertex* src = matrix->vertices[e->row];
+  vertex* dst = matrix->vertices[e->column];
+  src->matched_edges->erase(e);
+  dst->matched_edges->erase(e);
+  matrix->totalWeight -= e->weight;
+  src->matched_edge_count--;
+  dst->matched_edge_count--;
+  e->matched = false;
+}
+
+vertex* other_end(sparseEdge* e, vertex* v, sparseMatrix* matrix){
+  vertex* oe;
+  if (matrix->vertices[e->row] == v){
+    oe = matrix->vertices[e->column];
+  } else {
+    oe = matrix->vertices[e->row];
+  }
+  return oe;
+}
+
+sparseEdge* max_weight_unmatched_edge(vertex* v, sparseMatrix* matrix, int B){
+  vertex* oe;
+  double max_val;
+  sparseEdge* max_edge;
+
+  max_edge = (sparseEdge*) NULL;
+  max_val = 0;
+
+  for (auto it = v->adjacent_edges->begin(); it != v->adjacent_edges->end(); ++it) {
+    oe = other_end((*it), v, matrix);
+    if(!(*it)->matched && (*it)->weight > max_val){
+      if(oe->matched_edge_count < B){
+          max_val = (*it)->weight;
+          max_edge = (*it);
+        } else {
+          sparseEdge* other_end_lme = LOWEST_MATCHED_EDGE(oe);
+          if((*it)->weight > other_end_lme->weight){
+            max_val = (*it)->weight;
+            max_edge = (*it);
+          }
+        }
+      }
+    }
+    return max_edge;
+}
+
+void loop_matching_from_vertex(vertex* v, sparseMatrix* matrix, int B){
+  int i = 0;
+  vertex* curr_v = v;
+  sparseEdge* curr_e = (sparseEdge*) NULL;
+  curr_e = LOWEST_MATCHED_EDGE(curr_v);
+  while (curr_e != (sparseEdge*) NULL){
+    if( i%2 == 0 ){
+      remove_edge(curr_e, matrix);
+      curr_v = other_end(curr_e, curr_v, matrix);
+      sparseEdge* lol;
+      lol = max_weight_unmatched_edge(curr_v, matrix,B);
+      assert(curr_e != lol);
+      curr_e = lol;
+      i += 1;
+    } else {
+      add_edge(curr_e, matrix);
+      curr_v = other_end(curr_e, curr_v, matrix);
+      if(curr_v->matched_edge_count <= B){
+        curr_e = (sparseEdge*) NULL;
+      } else {
+        curr_e = LOWEST_MATCHED_EDGE(curr_v);
+      }
+      i += 1;
+    }
+  }
+}
+
+void loop_matching_from_vertex_double(vertex* v, vertex* u, sparseMatrix* matrix, int B){
+  vertex* curr_v_1 = v;
+  vertex* curr_v_2 = u;
+  sparseEdge* curr_e_1 = LOWEST_MATCHED_EDGE(curr_v_1);
+  sparseEdge* curr_e_2 = LOWEST_MATCHED_EDGE(curr_v_2);
+  remove_edge(curr_e_1, matrix);
+  curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
+  remove_edge(curr_e_2, matrix);
+  curr_v_2 = other_end(curr_e_2, curr_v_2, matrix);
+  curr_e_1 = max_weight_unmatched_edge(curr_v_1, matrix,B);
+  curr_e_2 = max_weight_unmatched_edge(curr_v_2, matrix,B);
+
+  while (curr_e_1 != (sparseEdge*) NULL && curr_e_2 != (sparseEdge*) NULL){
+    if(curr_e_1 != (sparseEdge*) NULL && curr_e_2 == (sparseEdge*) NULL){
+        add_edge(curr_e_1, matrix);
+        curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
+        if(curr_v_1->matched_edge_count <= B){
+          curr_e_1 = (sparseEdge*) NULL;
+        } else {
+          curr_e_1 = LOWEST_MATCHED_EDGE(curr_v_1);
+          remove_edge(curr_e_1, matrix);
+          curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
+          sparseEdge* lol;
+          lol = max_weight_unmatched_edge(curr_v_1, matrix,B);
+          assert(curr_e_1 != lol);
+          curr_e_1 = lol;
+        }
+      }
+    else if(curr_e_1 == (sparseEdge*) NULL && curr_e_2 != (sparseEdge*) NULL){
+      add_edge(curr_e_2, matrix);
+      curr_v_2 = other_end(curr_e_2, curr_v_2, matrix);
+      if(curr_v_2->matched_edge_count <= B){
+        curr_e_2 = (sparseEdge*) NULL;
+      } else {
+        curr_e_2 = LOWEST_MATCHED_EDGE(curr_v_2);
+        remove_edge(curr_e_2, matrix);
+        curr_v_2 = other_end(curr_e_2, curr_v_2, matrix);
+        sparseEdge* lol;
+        lol = max_weight_unmatched_edge(curr_v_2, matrix,B);
+        assert(curr_e_2 != lol);
+        curr_e_2 = lol;
+      }
+    }
+    else if(curr_e_1->weight > curr_e_2->weight){
+      add_edge(curr_e_1, matrix);
+      curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
+      if(curr_v_1->matched_edge_count <= B){
+        curr_e_1 = (sparseEdge*) NULL;
+      } else {
+        curr_e_1 = LOWEST_MATCHED_EDGE(curr_v_1);
+        remove_edge(curr_e_1, matrix);
+        curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
+        sparseEdge* lol;
+        lol = max_weight_unmatched_edge(curr_v_1, matrix,B);
+        assert(curr_e_1 != lol);
+        curr_e_1 = lol;
+      }
+    }
+    else{
+      add_edge(curr_e_2, matrix);
+      curr_v_2 = other_end(curr_e_2, curr_v_2, matrix);
+      if(curr_v_2->matched_edge_count <= B){
+        curr_e_2 = (sparseEdge*) NULL;
+      } else {
+        curr_e_2 = LOWEST_MATCHED_EDGE(curr_v_2);
+        remove_edge(curr_e_2, matrix);
+        curr_v_2 = other_end(curr_e_2, curr_v_2, matrix);
+        sparseEdge* lol;
+        lol = max_weight_unmatched_edge(curr_v_2, matrix,B);
+        assert(curr_e_2 != lol);
+        curr_e_2 = lol;
+      }
+    }
+  }
+}
+
 double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
   assert(!new_edge->matched);
   vertex* src = matrix->vertices[new_edge->row];
   vertex* dst = matrix->vertices[new_edge->column];
   int src_num_matches = src->matched_edge_count;
   int dst_num_matches = dst->matched_edge_count;
-  sparseEdge* src_lowest_edge = *(src->matched_edges->begin());
-  sparseEdge* dst_lowest_edge = *(dst->matched_edges->begin());
-  double new_edge_weight = new_edge->weight;
-  bool scan_required1 = false;
-  bool scan_required2 = false;
-  sparseEdge* edgeToRemove1 = (sparseEdge*) NULL;
-  sparseEdge* edgeToRemove2 = (sparseEdge*) NULL;
-  vertex* scanVertex1;
-  vertex* scanVertex2;
+  double new_edge_weight = new_edge -> weight;
+  sparseEdge* src_lowest_edge = LOWEST_MATCHED_EDGE(src);
+  sparseEdge* dst_lowest_edge = LOWEST_MATCHED_EDGE(dst);
 
-  // TODO: avoid computation by separating conditions into bools
-  if (src_num_matches < B && dst_num_matches < B) {
-    // Add new edge to matching!
-    src->matched_edges->insert(new_edge);
-    dst->matched_edges->insert(new_edge);
-    src->matched_edge_count++;
-    dst->matched_edge_count++;
-    matrix->totalWeight += new_edge_weight;
-    new_edge->matched = true;
-
-  } else if (src_num_matches == B &&
-     dst_num_matches < B &&
-      new_edge_weight > src_lowest_edge->weight ) {
-    // Remove match from src, add new edge
-    scan_required1 = true;
-    edgeToRemove1 = src_lowest_edge;
-    if (matrix->vertices[edgeToRemove1->row] == src){
-      scanVertex1 = matrix->vertices[edgeToRemove1->column];
-    } else {
-      scanVertex1 = matrix->vertices[edgeToRemove1->row];
-    }
-
-    scanVertex1->matched_edges->erase(edgeToRemove1);
-    src->matched_edges->erase(edgeToRemove1);
-    matrix->totalWeight -= edgeToRemove1->weight;
-    src->matched_edge_count--;
-    scanVertex1->matched_edge_count--;
-    edgeToRemove1->matched = false;
-
-    src->matched_edges->insert(new_edge);
-    dst->matched_edges->insert(new_edge);
-    src->matched_edge_count++;
-    dst->matched_edge_count++;
-    matrix->totalWeight += new_edge_weight;
-    new_edge->matched = true;
-
-  } else if (dst_num_matches == B &&
-     src_num_matches < B &&
-      new_edge_weight > dst_lowest_edge->weight ) {
-    // Remove match from dst, add new edge
-    scan_required2 = true;
-    edgeToRemove2 = dst_lowest_edge;
-    if (matrix->vertices[edgeToRemove1->row] == dst){
-      scanVertex2 = matrix->vertices[edgeToRemove1->column];
-    } else {
-      scanVertex2 = matrix->vertices[edgeToRemove1->row];
-    }
-
-    scanVertex2->matched_edges->erase(edgeToRemove2);
-    dst->matched_edges->erase(edgeToRemove2);
-    matrix->totalWeight -= edgeToRemove2->weight;
-    dst->matched_edge_count--;
-    scanVertex2->matched_edge_count--;
-    edgeToRemove2->matched = false;
-
-    src->matched_edges->insert(new_edge);
-    dst->matched_edges->insert(new_edge);
-    src->matched_edge_count++;
-    dst->matched_edge_count++;
-    matrix->totalWeight += new_edge_weight;
-    new_edge->matched = true;
-
-  } else if (src_num_matches == B &&
-     dst_num_matches == B &&
-      new_edge_weight > src_lowest_edge->weight &&
-       new_edge_weight > dst_lowest_edge->weight) {
-    // Remove match from both src and dst, add new edge
-    scan_required1 = true;
-    scan_required2 = true;
-    edgeToRemove1 = dst_lowest_edge;
-    edgeToRemove2 = src_lowest_edge;
-    if (matrix->vertices[edgeToRemove1->row] == dst){
-      scanVertex2 = matrix->vertices[edgeToRemove1->column];
-    } else {
-      scanVertex2 = matrix->vertices[edgeToRemove1->row];
-    }
-    if (matrix->vertices[edgeToRemove1->row] == src){
-      scanVertex1 = matrix->vertices[edgeToRemove1->column];
-    } else {
-      scanVertex1 = matrix->vertices[edgeToRemove1->row];
-    }
-
-    scanVertex1->matched_edges->erase(edgeToRemove1);
-    src->matched_edges->erase(edgeToRemove1);
-    src->matched_edge_count--;
-    scanVertex1->matched_edge_count--;
-    matrix->totalWeight -= edgeToRemove1->weight;
-    edgeToRemove1->matched = false;
-
-    scanVertex2->matched_edges->erase(edgeToRemove2);
-    dst->matched_edges->erase(edgeToRemove2);
-    dst->matched_edge_count--;
-    scanVertex2->matched_edge_count--;
-    matrix->totalWeight -= edgeToRemove2->weight;
-    edgeToRemove2->matched = false;
-
-    src->matched_edges->insert(new_edge);
-    dst->matched_edges->insert(new_edge);
-    src->matched_edge_count++;
-    dst->matched_edge_count++;
-    matrix->totalWeight += new_edge_weight;
-    new_edge->matched = true;
-
-  }
-
-  double max_weight_1 = 0;
-  double second_max_weight_1 = 0;
-  sparseEdge* new_match_1 = (sparseEdge*) NULL;
-  sparseEdge* second_new_match_1 = (sparseEdge*) NULL;
-  vertex* other_end;
-
-  if (scan_required1) {
-    for (auto it = scanVertex1->adjacent_edges->begin(); it != scanVertex1->adjacent_edges->end(); ++it) {
-      if (matrix->vertices[(*it)->row] == scanVertex1){
-        other_end = matrix->vertices[(*it)->column];
-      } else {
-        other_end = matrix->vertices[(*it)->row];
-      }
-      if ((*it)->weight > max_weight_1 && !(*it)->matched && other_end->matched_edge_count < B){
-        second_max_weight_1 = max_weight_1;
-        second_new_match_1 = new_match_1;
-        max_weight_1 = (*it)->weight;
-        new_match_1 = *it;
-      } else if ((*it)->weight > second_max_weight_1 && !(*it)->matched && other_end->matched_edge_count < B){
-        second_max_weight_1 = (*it)->weight;
-        second_new_match_1 = *it;
-      }
-    }
-  }
-
-  double max_weight_2 = 0;
-  double second_max_weight_2 = 0;
-  sparseEdge* new_match_2 = (sparseEdge*) NULL;
-  sparseEdge* second_new_match_2 = (sparseEdge*) NULL;
-
-  if (scan_required2) {
-    for (auto it = scanVertex2->adjacent_edges->begin(); it != scanVertex2->adjacent_edges->end(); ++it) {
-      if (matrix->vertices[(*it)->row] == scanVertex2){
-        other_end = matrix->vertices[(*it)->column];
-      } else {
-        other_end = matrix->vertices[(*it)->row];
-      }
-      if ((*it)->weight > max_weight_2 && !(*it)->matched && other_end->matched_edge_count < B){
-        second_max_weight_2 = max_weight_2;
-        second_new_match_2 = new_match_2;
-        max_weight_2 = (*it)->weight;
-        new_match_2 = *it;
-      } else if ((*it)->weight > second_max_weight_2 && !(*it)->matched && other_end->matched_edge_count < B){
-        second_max_weight_2 = (*it)->weight;
-        second_new_match_2 = *it;
-      }
-    }
-  }
-
-  double max_weight_both = 0;
-  sparseEdge* new_match_both;
-
-  if(new_match_1 != (sparseEdge*) NULL && new_match_2 != (sparseEdge*) NULL){
-    if( max_weight_1 >  max_weight_2){
-      max_weight_both = max_weight_1;
-      new_match_both = new_match_1;
-    } else {
-      max_weight_both = max_weight_2;
-      new_match_both = new_match_2;
-    }
-
-    matrix->vertices[new_match_both->row]->matched_edges->insert(new_match_both);
-    matrix->vertices[new_match_both->column]->matched_edges->insert(new_match_both);
-
-    matrix->vertices[new_match_both->row]->matched_edge_count++;
-    matrix->vertices[new_match_both->column]->matched_edge_count++;
-
-    matrix->totalWeight += max_weight_both;
-    new_match_both->matched = true;
-  }
-
-  if(new_match_1 != (sparseEdge*) NULL && scanVertex1->matched_edge_count < B){
-    vertex* other_end;
-    if (matrix->vertices[new_match_1->row] == scanVertex1){
-      other_end = matrix->vertices[new_match_1->column];
-    } else {
-      other_end = matrix->vertices[new_match_1->row];
-    }
-    if (other_end->matched_edge_count < B){
-      matrix->vertices[new_match_1->row]->matched_edges->insert(new_match_1);
-      matrix->vertices[new_match_1->column]->matched_edges->insert(new_match_1);
-
-      matrix->vertices[new_match_1->row]->matched_edge_count++;
-      matrix->vertices[new_match_1->column]->matched_edge_count++;
-
-      matrix->totalWeight += max_weight_1;
-      new_match_1->matched = true;
-    } else if (second_new_match_1 != (sparseEdge*) NULL) {
-      if (matrix->vertices[second_new_match_1->row] == scanVertex1){
-        other_end = matrix->vertices[second_new_match_1->column];
-      } else {
-        other_end = matrix->vertices[second_new_match_1->row];
-      }
-      if (other_end->matched_edge_count < B){
-        matrix->vertices[second_new_match_1->row]->matched_edges->insert(second_new_match_1);
-        matrix->vertices[second_new_match_1->column]->matched_edges->insert(second_new_match_1);
-
-        matrix->vertices[second_new_match_1->row]->matched_edge_count++;
-        matrix->vertices[second_new_match_1->column]->matched_edge_count++;
-
-        matrix->totalWeight += second_max_weight_1;
-        second_new_match_1->matched = true;
-      }
-    }
-  }
-
-  if(new_match_2 != (sparseEdge*) NULL && scanVertex2->matched_edge_count < B){
-    vertex* other_end;
-    if (matrix->vertices[new_match_2->row] == scanVertex2){
-      other_end = matrix->vertices[new_match_2->column];
-    } else {
-      other_end = matrix->vertices[new_match_2->row];
-    }
-    if (other_end->matched_edge_count < B){
-      matrix->vertices[new_match_2->row]->matched_edges->insert(new_match_2);
-      matrix->vertices[new_match_2->column]->matched_edges->insert(new_match_2);
-
-      matrix->vertices[new_match_2->row]->matched_edge_count++;
-      matrix->vertices[new_match_2->column]->matched_edge_count++;
-
-      matrix->totalWeight += max_weight_2;
-      new_match_2->matched = true;
-    } else if (second_new_match_2 != (sparseEdge*) NULL) {
-      if (matrix->vertices[second_new_match_2->row] == scanVertex2){
-        other_end = matrix->vertices[second_new_match_2->column];
-      } else {
-        other_end = matrix->vertices[second_new_match_2->row];
-      }
-      if (other_end->matched_edge_count < B){
-        matrix->vertices[second_new_match_2->row]->matched_edges->insert(second_new_match_2);
-        matrix->vertices[second_new_match_2->column]->matched_edges->insert(second_new_match_2);
-
-        matrix->vertices[second_new_match_2->row]->matched_edge_count++;
-        matrix->vertices[second_new_match_2->column]->matched_edge_count++;
-
-        matrix->totalWeight += second_max_weight_2;
-        second_new_match_2->matched = true;
-      }
-    }
-  }
-
-  for (int i = 0; i < matrix->numRows; i++) {
-    assert(matrix->vertices[i]->matched_edge_count <= B);
-  }
-
-
-  // Do final updates
   src->adjacent_edges->push_back(new_edge);
   dst->adjacent_edges->push_back(new_edge);
   src->adjacent_edge_count++;
@@ -320,6 +227,44 @@ double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
   sort(dst->adjacent_edges->begin(), dst->adjacent_edges->end(), compareEdgesIncreasing);
   matrix->vertices[new_edge->row] = src;
   matrix->vertices[new_edge->column] = dst;
+
+  // TODO: avoid computation by separating conditions into bools
+  if (src_num_matches < B && dst_num_matches < B) {
+    // Add new edge to matching!
+    cout << "no collision" << endl;
+    add_edge(new_edge, matrix);
+  } else if (src_num_matches == B &&
+     dst_num_matches < B &&
+      new_edge_weight > src_lowest_edge->weight ) {
+    // Remove match from src, add new edge
+    cout << "src collision" << endl;
+    add_edge(new_edge, matrix);
+    loop_matching_from_vertex(src, matrix, B);
+  } else if (dst_num_matches == B &&
+     src_num_matches < B &&
+      new_edge_weight > dst_lowest_edge->weight ) {
+    // Remove match from dst, add new edge
+    cout << "dst collision" << endl;
+    add_edge(new_edge, matrix);
+    loop_matching_from_vertex(dst, matrix, B);
+  } else if (src_num_matches == B &&
+     dst_num_matches == B &&
+      new_edge_weight > src_lowest_edge->weight &&
+       new_edge_weight > dst_lowest_edge->weight) {
+    // Remove match from both src and dst, add new edge
+    cout << "both collision";
+    add_edge(new_edge, matrix);
+    loop_matching_from_vertex_double(src,dst, matrix, B);
+  //  loop_matching_from_vertex(dst, matrix, B);
+  }
+
+  for (int i = 0; i < matrix->numRows; i++) {
+    assert(matrix->vertices[i]->matched_edge_count <= B);
+  }
+
+
+  // Do final updates
+
   return matrix->totalWeight;
 }
 
@@ -333,8 +278,8 @@ int main(int argc, char **argv) {
   // Algorithm starts here -----------------
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
   sparseEdge* new_edge = new sparseEdge;
-  new_edge->row = 16;
-  new_edge->column = 2;
+  new_edge->row = 16-1;
+  new_edge->column = 2-1;
   new_edge->matched = false;
   new_edge->weight = 8.852731490654721e+00;
 
