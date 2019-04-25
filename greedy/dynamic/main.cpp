@@ -14,6 +14,7 @@
 using namespace std;
 using namespace std::chrono;
 
+#define NDEBUG
 #define LOWEST_MATCHED_EDGE(x) *(x->matched_edges->begin())
 
 double greedy_dynamic_match(sparseMatrix* matrix, int B) {
@@ -48,8 +49,6 @@ double greedy_dynamic_match(sparseMatrix* matrix, int B) {
 
 void add_edge(sparseEdge* e, sparseMatrix* matrix){
   assert(!(e->matched));
-  cout << "added edge " << e->row << " to " << e->column;
-  cout << " weight " << e->weight << endl;
   vertex* src = matrix->vertices[e->row];
   vertex* dst = matrix->vertices[e->column];
   src->matched_edges->insert(e);
@@ -62,8 +61,6 @@ void add_edge(sparseEdge* e, sparseMatrix* matrix){
 
 void remove_edge(sparseEdge*e, sparseMatrix* matrix){
   assert(e->matched);
-  cout << "removed edge "  << e->row << " to " << e->column;
-  cout << " weight " << e->weight << endl;
   vertex* src = matrix->vertices[e->row];
   vertex* dst = matrix->vertices[e->column];
   src->matched_edges->erase(e);
@@ -150,10 +147,6 @@ void loop_matching_from_vertex_double(vertex* v, vertex* u, sparseMatrix* matrix
   curr_e_2 = max_weight_unmatched_edge(curr_v_2, matrix,B);
 
   while (curr_e_1 != (sparseEdge*) NULL && curr_e_2 != (sparseEdge*) NULL){
-
-    cout << "edge 1 from " << curr_e_1->row << " to " << curr_e_1->column << " weight " <<curr_e_1->weight << endl;
-    cout << "edge 2 from " << curr_e_2->row << " to " << curr_e_2->column << " weight " <<curr_e_2->weight << endl;
-
     if(curr_e_1 != (sparseEdge*) NULL && curr_e_2 == (sparseEdge*) NULL){
         add_edge(curr_e_1, matrix);
         curr_v_1 = other_end(curr_e_1, curr_v_1, matrix);
@@ -239,20 +232,20 @@ double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
   // TODO: avoid computation by separating conditions into bools
   if (src_num_matches < B && dst_num_matches < B) {
     // Add new edge to matching!
-    cout << "no collision" << endl;
+    // cout << "no collision" << endl;
     add_edge(new_edge, matrix);
   } else if (src_num_matches == B &&
      dst_num_matches < B &&
       new_edge_weight > src_lowest_edge->weight ) {
     // Remove match from src, add new edge
-    cout << "src collision" << endl;
+    // cout << "src collision" << endl;
     add_edge(new_edge, matrix);
     loop_matching_from_vertex(src, matrix, B);
   } else if (dst_num_matches == B &&
      src_num_matches < B &&
       new_edge_weight > dst_lowest_edge->weight ) {
     // Remove match from dst, add new edge
-    cout << "dst collision" << endl;
+    // cout << "dst collision" << endl;
     add_edge(new_edge, matrix);
     loop_matching_from_vertex(dst, matrix, B);
   } else if (src_num_matches == B &&
@@ -260,10 +253,9 @@ double update_matching(sparseMatrix* matrix, int B, sparseEdge* new_edge) {
       new_edge_weight > src_lowest_edge->weight &&
        new_edge_weight > dst_lowest_edge->weight) {
     // Remove match from both src and dst, add new edge
-    cout << "both collision" << endl;
+    // cout << "both collision" << endl;
     add_edge(new_edge, matrix);
     loop_matching_from_vertex_double(src,dst, matrix, B);
-  //  loop_matching_from_vertex(dst, matrix, B);
   }
 
   for (int i = 0; i < matrix->numRows; i++) {
@@ -281,17 +273,16 @@ int main(int argc, char **argv) {
     cout << "Input file and number of matches not specified.";
     return 0;
   }
-  auto start = high_resolution_clock::now();
-
   // Algorithm starts here -----------------
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
   sparseEdge* new_edge = new sparseEdge;
-  new_edge->row = 16-1;
-  new_edge->column = 3-1;
+  new_edge->row = 1-1;
+  new_edge->column = 1-1;
   new_edge->matched = false;
-  new_edge->weight = 8.852731490654721e+00;
+  new_edge->weight = 24.85530664763014+00;
 
   double totalWeight = greedy_dynamic_match(matrix, atoi(argv[2]));
+  auto start = high_resolution_clock::now();
   double newTotal = update_matching(matrix, atoi(argv[2]), new_edge);
   // End algorithm -------------------------
 
@@ -299,7 +290,7 @@ int main(int argc, char **argv) {
   auto duration = duration_cast<microseconds>(stop - start);
   cout << "Time taken by function: "
     << duration.count() << " microseconds" << endl;
-  cout << "Weight 1 " << totalWeight << endl;
-  cout << "Weight 2 " << newTotal << endl;
+  cout << "Original weight " << totalWeight << endl;
+  cout << "New weight " << newTotal << endl;
   return 1;
 }

@@ -38,8 +38,8 @@ int main(int argc, char **argv) {
     cout << "Input file and number of matches not specified.";
     return 0;
   }
-  auto start = high_resolution_clock::now();
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
+  auto start = high_resolution_clock::now();
   double totalWeight = greedy(matrix, atoi(argv[2]));
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<microseconds>(stop - start);
