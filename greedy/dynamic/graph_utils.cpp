@@ -76,7 +76,7 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
 
     // Initialize edge to be added to edge list
   	sparseEdge* edge = new sparseEdge;
-    edge->weight = data;
+    edge->weight = abs(data);
     edge->row = m-1;
     edge->column = n-1;
     edge->matched = false;

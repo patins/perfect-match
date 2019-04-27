@@ -51,7 +51,7 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
   	double data;
     fin >> m >> n >> data;
   	sparseEdge edge;
-    edge.weight = data;
+    edge.weight = abs(data);
     edge.row = m-1;
     edge.column = n-1;
     edge.matched = false;
