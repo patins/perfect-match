@@ -1,3 +1,5 @@
+using namespace std;
+
 // Stores an entire matrix (including 0s)
 typedef struct denseMatrix {
   double* data;
@@ -13,8 +15,26 @@ typedef struct sparseEdge {
   bool matched;
 } sparseEdge;
 
+// Comparator for sparseEdge priority priority_queue
+typedef struct compareEdges_queue {
+    bool operator()(sparseEdge const& e1, sparseEdge const& e2)
+    {
+        return e1.weight < e2.weight;
+    }
+} compareEdges_queue;
+
+// Vertex component to for dynamic updates
+typedef struct vertex {
+  sparseEdge* adjacent_edges; // TODO: change to a BST
+  int adjacent_edge_count;
+  priority_queue<sparseEdge, vector<sparseEdge>, compareEdges_queue>* matched_edges;
+  int matched_edge_count;
+} vertex;
+
+// Wrapper to store sparseEdges and vertices with some metadata
 typedef struct sparseMatrix {
   sparseEdge* edges;
+  vertex* vertices;
   int numEdges;
   int numRows;
   int numColumns;
