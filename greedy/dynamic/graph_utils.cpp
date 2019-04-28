@@ -65,8 +65,6 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
     matrixVertices[m] = v;
   }
 
-  // TODO -- change sort to a streaming sort, like heapsort
-  // TODO -- make this an array of pointers rather than storing structs in mem
   // Step 2: Iterate through edges
   for (int l = 0; l < L; l++)
   {
