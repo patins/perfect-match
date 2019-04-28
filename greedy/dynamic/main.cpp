@@ -154,32 +154,28 @@ vertex* other_end(sparseEdge* e, vertex* v, sparseMatrix* matrix){
   return oe;
 }
 
-sparseEdge* max_weight_unmatched_edge(vertex* v, sparseMatrix* matrix, int B){
+sparseEdge* max_weight_unmatched_edge(vertex* v, sparseMatrix* matrix, int B) {
+  sparseEdge* lowest_matched_edge = LOWEST_MATCHED_EDGE(v);
+  int end_index = lower_bound(v->adjacent_edges->begin(), v->adjacent_edges->end(), lowest_matched_edge, compareEdgesIncreasing) - v->adjacent_edges->begin();
+  sparseEdge* current_edge;
   vertex* oe;
-  double max_val;
-  sparseEdge* max_edge;
-
-  max_edge = (sparseEdge*) NULL;
-  max_val = 0;
-  if(v->matched_edge_count == B){
-    return max_edge;
+  if (v->matched_edge_count == B) {
+    return (sparseEdge*) NULL;
   }
-  for (auto it = v->adjacent_edges->begin(); it != v->adjacent_edges->end(); ++it) {
-    oe = other_end((*it), v, matrix);
-    if(!(*it)->matched && (*it)->weight > max_val){
-      if(oe->matched_edge_count < B){
-          max_val = (*it)->weight;
-          max_edge = (*it);
-        } else {
-          sparseEdge* other_end_lme = LOWEST_MATCHED_EDGE(oe);
-          if((*it)->weight > other_end_lme->weight){
-            max_val = (*it)->weight;
-            max_edge = (*it);
-          }
-        }
+  for (int i = end_index - 1; i >= 0; i--) {
+    current_edge = v->adjacent_edges->at(i);
+    assert(!current_edge->matched);
+    oe = other_end(current_edge, v, matrix);
+    if (oe->matched_edge_count < B) {
+      return current_edge;
+    } else {
+      sparseEdge* other_end_lme = LOWEST_MATCHED_EDGE(oe);
+      if (current_edge->weight > other_end_lme->weight) {
+        return current_edge;
       }
     }
-    return max_edge;
+  }
+  return (sparseEdge*) NULL;
 }
 
 void loop_matching_from_vertex(vertex* v, sparseMatrix* matrix, int B){
@@ -187,7 +183,7 @@ void loop_matching_from_vertex(vertex* v, sparseMatrix* matrix, int B){
   vertex* curr_v = v;
   sparseEdge* curr_e = (sparseEdge*) NULL;
   curr_e = LOWEST_MATCHED_EDGE(curr_v);
-  while (curr_e != (sparseEdge*) NULL){
+  while (curr_e != (sparseEdge*) NULL) {
     if( i%2 == 0 ){
       remove_edge(curr_e, matrix);
       curr_v = other_end(curr_e, curr_v, matrix);
