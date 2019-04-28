@@ -338,14 +338,17 @@ int main(int argc, char **argv) {
   if (argc == 2) {
     cout << "Input file and number of matches not specified.";
     return 0;
+  } else if (argc != 6) {
+    cout << "New edge not specified.";
+    return 0;
   }
   // Algorithm starts here -----------------
   sparseMatrix* matrix = read_symmetric_sparse_matrix_file(argv[1]);
   sparseEdge* new_edge = new sparseEdge;
-  new_edge->row = 2-1;
-  new_edge->column = 1-1;
+  new_edge->row = atoi(argv[3])-1;
+  new_edge->column = atoi(argv[4])-1;
   new_edge->matched = false;
-  new_edge->weight = 15.496714153011233e+00;
+  new_edge->weight = atof(argv[5]);
 
   double totalWeight = greedy_dynamic_match(matrix, atoi(argv[2]));
 
