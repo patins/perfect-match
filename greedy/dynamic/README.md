@@ -11,4 +11,6 @@ For `b=6` case.
 | RERUN GREEDY  |    8 us |     121101 us |
 | Vanilla | 13 us |  222 us|
 | Optimize finding max weight unmatched edge by exploting sortedness of list | 12 us | 166 us |
-| Add `-flto` flag | 6 us | 74 us |
+| Add `-flto` flag  | 6 us | 74 us |
+| Improve branch prediction | 4 us | 42 us | 
+| Change adjacency vector to be a BST | | |
