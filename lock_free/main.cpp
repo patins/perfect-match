@@ -217,6 +217,8 @@ double lock_free_matching(sparseMatrix *matrix, int b) {
 
   sort(matrix->edges, matrix->edges + matrix->numEdges, compareSparseEdge);
 
+  double match_weight = 0;
+
   while (!vertex_queue->empty()) {
     new_vertex_queue = new vector<int>();
 
@@ -228,7 +230,8 @@ double lock_free_matching(sparseMatrix *matrix, int b) {
       // returns the first instance of edge with row v, or last edge in array
       sparseEdge *e = lower_bound(matrix->edges, matrix->edges + matrix->numEdges, v, compareSparseEdgeRowC);
       // for all edges with row v
-      for (; (e != matrix->edges + matrix->numEdges) && e->row == v; e++) {
+      int v_proposed_matches = 0;
+      for (; (e != matrix->edges + matrix->numEdges) && e->row == v && v_proposed_matches < unmatched_spots; e++) {
         bool already_matched = false;
         for (sparseEdge &e2 : vertex_suitors[v]) {
           if ((e2.row == e->row && e2.column == e->column) || (e2.row == e->column && e2.column == e->row)) {
@@ -239,23 +242,41 @@ double lock_free_matching(sparseMatrix *matrix, int b) {
 
         if (!already_matched) {
           proposed_matches.push_back(*e);
+          v_proposed_matches++;
         }
       }
     }
 
     sort(proposed_matches.begin(), proposed_matches.end(), compareSparseEdgeColumn);
 
+    vector<sparseEdge> completed_matches;
+
     for (sparseEdge &e : proposed_matches) {
       vector<sparseEdge> *suitor_heap = vertex_suitors + e.column;
       if (suitor_heap->size() < b) {
         suitor_heap->push_back(e);
         push_heap(suitor_heap->begin(), suitor_heap->end(), compareSparseEdgeMinWeight);
+        completed_matches.push_back(e);
+        match_weight += e.weight;
       } else if (suitor_heap->front().weight < e.weight) {
+        // TODO this needs to be removed from the other heap as well
         pop_heap(suitor_heap->begin(), suitor_heap->end(), compareSparseEdgeMinWeight);
+        match_weight -= suitor_heap->back().weight;
+
         suitor_heap->pop_back();
         suitor_heap->push_back(e);
         push_heap(suitor_heap->begin(), suitor_heap->end(), compareSparseEdgeMinWeight);
+        completed_matches.push_back(e);
+        match_weight += e.weight;
       }
+    }
+
+    // sort for parallel
+
+    for (sparseEdge &e : completed_matches) {
+      vector<sparseEdge> *suitor_heap = vertex_suitors + e.row;
+      suitor_heap->push_back(e);
+      push_heap(suitor_heap->begin(), suitor_heap->end(), compareSparseEdgeMinWeight);
     }
 
     delete vertex_queue;
@@ -263,8 +284,58 @@ double lock_free_matching(sparseMatrix *matrix, int b) {
     new_vertex_queue = NULL;
   }
 
-  delete[] vertex_suitors;
   delete vertex_queue;
+
+  for (int r = 0; r < matrix->numRows; r++) {
+    cout << r << ": ";
+    for (sparseEdge &e : vertex_suitors[r]) {
+      cout << e.weight << " ";
+    }
+    cout << endl;
+  }
+  cout << " ---- " << endl;
+  
+  for (int r = 0; r < matrix->numRows; r++) {
+    cout << r << ": ";
+    for (sparseEdge &e : vertex_suitors[r]) {
+      if (e.row == r)
+        cout << e.column << " ";
+      else
+        cout << e.row << " ";
+    }
+    cout << endl;
+  }
+  cout << " ---- " << endl;
+
+  for (int r = 0; r < matrix->numRows; r++) {
+    for (sparseEdge &e : vertex_suitors[r]) {
+      bool valid = false;
+      if (e.row == r) {
+        for (sparseEdge &e2 : vertex_suitors[e.column]) {
+          if ((e2.row == e.row && e2.column == e.column) || (e2.row == e.column && e2.column == e.row)) {
+            if (!valid)
+              valid = true;
+            else
+              cout << "BAD2" << endl;
+          }
+        }
+      } else {
+        for (sparseEdge &e2 : vertex_suitors[e.row]) {
+          if ((e2.row == e.row && e2.column == e.column) || (e2.row == e.column && e2.column == e.row)) {
+            if (!valid)
+              valid = true;
+            else
+              cout << "BAD2" << endl;
+          }
+        }
+      }
+      if(!valid)
+        cout << "BAD " << e.row << " " << e.column << endl;
+    }
+  }
+
+  delete[] vertex_suitors;
+  return match_weight;
 }
 
 int main(int argc, char **argv) {
@@ -275,6 +346,10 @@ int main(int argc, char **argv) {
   auto start = high_resolution_clock::now();
   sparseMatrix *matrix = read_symmetric_sparse_matrix_file(argv[1]);
   double totalWeight = lock_free_matching(matrix, atoi(argv[2]));
+  /*
+  denseMatrix matrix = read_symmetric_dense_matrix_file(argv[1]);
+  double totalWeight = lock_free_matching(&matrix, atoi(argv[2]));
+  */
   auto stop = high_resolution_clock::now();
   auto duration = duration_cast<microseconds>(stop - start);
   cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
