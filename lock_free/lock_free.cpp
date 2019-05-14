@@ -118,131 +118,141 @@ bool match_update_comparator(match_update_t &a, match_update_t &b) {
   return a.source_id > b.source_id;
 }
 
+void generate_candidate_matches(sparseMatrix &matrix, size_t b, vector<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches) {
+  for (vertex_id_t v : queue) {
+    size_t target_count = b - suitors[v].size();
+    size_t proposed_count = 0;
+
+    // propose the best b matches for v
+    for (size_t i = 0; i < matrix.numEdges && proposed_count < target_count; i++) {
+      sparseEdge edge = matrix.edges[i];
+      vertex_id_t u;
+      if (edge.row == v)
+        u = edge.column;
+      else if (edge.column == v)
+        u = edge.row;
+      else
+        continue;
+
+      if (!suitors[u].is_suitor(v)) {
+        candidate_match_t candidate_match = {
+          .source_id = u,
+          .suitor_id = v,
+          .weight = edge.weight
+        };
+
+        if (DEBUG)
+          cout << "PROP " << u << " " << v << endl;
+
+        candidate_matches.push_back(candidate_match);
+        proposed_count++;
+      }
+    }
+  }
+}
+
+void generate_match_updates(sparseMatrix &matrix, vector<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches, vector<match_update_t> &match_updates) {
+  for (candidate_match_t candidate_match : candidate_matches) {
+    suitor_t proposed_suitor = {
+      .suitor_id = candidate_match.suitor_id,
+      .weight = candidate_match.weight
+    };
+    bump_result_t bump_result = suitors[candidate_match.source_id].attempt_bump(proposed_suitor);
+    if (bump_result.inserted) {
+      if (DEBUG) {
+        if (bump_result.removed)
+          cout << "BUMP " << candidate_match.source_id << " " << candidate_match.suitor_id << " " << bump_result.removed_id << endl;
+        else
+          cout << "ADD  " << candidate_match.source_id << " " << candidate_match.suitor_id << endl;
+      }
+
+      match_update_t insert_update = {
+        .source_id = candidate_match.suitor_id,
+        .suitor_id = candidate_match.source_id,
+        .weight = candidate_match.weight,
+        .remove = false
+      };
+      match_updates.push_back(insert_update);
+    }
+    if (bump_result.removed) {
+      match_update_t remove_update = {
+        .source_id = bump_result.removed_id,
+        .suitor_id = candidate_match.source_id,
+        .weight = 0,
+        .remove = true
+      };
+      match_updates.push_back(remove_update);
+      if (queue.size() > 0 && queue.back() != bump_result.removed_id)
+        queue.push_back(bump_result.removed_id);
+    }
+  }
+}
+
+void process_match_updates(sparseMatrix &matrix, vector<Suitors> &suitors, vector<match_update_t> &match_updates) {
+  for (match_update_t match_update : match_updates) {
+    if (match_update.remove) {
+      if (DEBUG)
+        cout << "REMB " << match_update.source_id << " " << match_update.suitor_id << endl;
+      suitors[match_update.source_id].remove(match_update.suitor_id);
+    } else {
+      if (!suitors[match_update.source_id].is_suitor(match_update.suitor_id)) {
+        suitor_t added_suitor = {
+          .suitor_id = match_update.suitor_id,
+          .weight = match_update.weight
+        };
+        if (DEBUG)
+          cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
+        suitors[match_update.source_id].add(added_suitor);
+      }
+    }
+  }
+}
+
 double lock_free_matching(sparseMatrix &matrix, size_t b) {
   vector<vertex_id_t> queue;
-  
   vector<Suitors> suitors (matrix.numRows, Suitors(b));
+  vector<candidate_match_t> candidate_matches;
+  candidate_matches.reserve(matrix.numRows * b);
+  vector<match_update_t> match_updates;
+  match_updates.reserve(matrix.numRows * b);
 
   // initialize the queue with all vertices
   for (vertex_id_t i = 0; i < 2000; i++)
     queue.push_back(i);
 
-  sparseEdge *edges_by_weight = new sparseEdge[matrix.numEdges];
-  copy(matrix.edges, matrix.edges + matrix.numEdges, edges_by_weight);
-  sort(edges_by_weight, edges_by_weight + matrix.numEdges, weight_comparator);
+  // sort edges by weight
+  sort(matrix.edges, matrix.edges + matrix.numEdges, weight_comparator);
 
   // while the queue isn't empty
   while (queue.size() != 0) {
-    vector<candidate_match_t> candidate_matches;
-
-    for (vertex_id_t v : queue) {
-      size_t target_count = b - suitors[v].size();
-      size_t proposed_count = 0;
-
-      // propose the best b matches for v
-      for (size_t i = 0; i < matrix.numEdges && proposed_count < target_count; i++) {
-        sparseEdge edge = edges_by_weight[i];
-        vertex_id_t u;
-        if (edge.row == v)
-          u = edge.column;
-        else if (edge.column == v)
-          u = edge.row;
-        else
-          continue;
-
-        if (!suitors[u].is_suitor(v)) {
-          candidate_match_t candidate_match = {
-            .source_id = u,
-            .suitor_id = v,
-            .weight = edge.weight
-          };
-
-          if (DEBUG)
-            cout << "PROP " << u << " " << v << endl;
-
-          candidate_matches.push_back(candidate_match);
-          proposed_count++;
-        }
-      }
-    }
+    generate_candidate_matches(matrix, b, queue, suitors, candidate_matches);
 
     queue.clear();
 
     sort(candidate_matches.begin(), candidate_matches.end(), candidate_match_comparator);
 
-    vector<match_update_t> match_updates;
+    generate_match_updates(matrix, queue, suitors, candidate_matches, match_updates);
 
-    // 2nd loop
-    for (candidate_match_t candidate_match : candidate_matches) {
-      suitor_t proposed_suitor = {
-        .suitor_id = candidate_match.suitor_id,
-        .weight = candidate_match.weight
-      };
-      bump_result_t bump_result = suitors[candidate_match.source_id].attempt_bump(proposed_suitor);
-      if (bump_result.inserted) {
-        if (DEBUG) {
-          if (bump_result.removed)
-            cout << "BUMP " << candidate_match.source_id << " " << candidate_match.suitor_id << " " << bump_result.removed_id << endl;
-          else
-            cout << "ADD  " << candidate_match.source_id << " " << candidate_match.suitor_id << endl;
-        }
-
-        match_update_t insert_update = {
-          .source_id = candidate_match.suitor_id,
-          .suitor_id = candidate_match.source_id,
-          .weight = candidate_match.weight,
-          .remove = false
-        };
-        match_updates.push_back(insert_update);
-      }
-      if (bump_result.removed) {
-        match_update_t remove_update = {
-          .source_id = bump_result.removed_id,
-          .suitor_id = candidate_match.source_id,
-          .weight = 0,
-          .remove = true
-        };
-        match_updates.push_back(remove_update);
-        if (queue.size() > 0 && queue.back() != bump_result.removed_id)
-          queue.push_back(bump_result.removed_id);
-      }
-    }
+    candidate_matches.clear();
 
     sort(match_updates.begin(), match_updates.end(), match_update_comparator);
 
-    if (DEBUG)
-      cout << "UPDATING STEP" << endl;
+    process_match_updates(matrix, suitors, match_updates);
 
-    // 3rd loop
-    for (match_update_t match_update : match_updates) {
-      if (match_update.remove) {
-        if (DEBUG)
-          cout << "REMB " << match_update.source_id << " " << match_update.suitor_id << endl;
-        suitors[match_update.source_id].remove(match_update.suitor_id);
-      } else {
-        if (!suitors[match_update.source_id].is_suitor(match_update.suitor_id)) {
-          suitor_t added_suitor = {
-            .suitor_id = match_update.suitor_id,
-            .weight = match_update.weight
-          };
-          if (DEBUG)
-            cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
-          suitors[match_update.source_id].add(added_suitor);
+    match_updates.clear();
+
+    if (DEBUG) {
+      for (int i = 0; i < matrix.numRows; i++) {
+        if(suitors[i].size() > b) {
+          cout << "FAILED " << i << endl;
+          for (suitor_t j : suitors[i]._suitors) {
+            cout << j.suitor_id << " ";
+          }
+          assert(false);
         }
       }
-    }
-
-    for (int i = 0; i < matrix.numRows; i++) {
-      if(suitors[i].size() > b) {
-        cout << "FAILED " << i << endl;
-        for (suitor_t j : suitors[i]._suitors) {
-          cout << j.suitor_id << " ";
-        }
-        assert(false);
-      }
-    }
-    if (DEBUG)
       cout << "Iteration complete" << endl;
+    }
   }
 
   double weight = 0;
