@@ -1,6 +1,8 @@
 CC = clang++
-TARGET = main
-CFLAGS = -g -O0
+TARGET = lock_free
+CFLAGS = -g
+#-L/usr/local/Cellar/gperftools/2.7/lib/
+#CFLAGS = -O3
 LDFLAGS =  $(CFLAGS)
 OBJECTS = \
 	$(TARGET).o \
