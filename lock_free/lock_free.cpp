@@ -121,7 +121,6 @@ bool match_update_comparator(match_update_t &a, match_update_t &b) {
 
 double lock_free_matching(sparseMatrix &matrix, size_t b) {
   vector<vertex_id_t> queue;
-  vector<vertex_id_t> queue_next;
   
   vector<Suitors> suitors(matrix.numRows, Suitors(b));
 
@@ -164,6 +163,8 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
       }
     }
 
+    queue.clear();
+
     sort(candidate_matches.begin(), candidate_matches.end(), candidate_match_comparator);
 
     vector<match_update_t> match_updates;
@@ -198,7 +199,8 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
           .remove = true
         };
         match_updates.push_back(remove_update);
-        queue_next.push_back(bump_result.removed_id);
+        if (queue.size() > 0 && queue.back() != bump_result.removed_id)
+          queue.push_back(bump_result.removed_id);
       }
     }
 
@@ -226,8 +228,6 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     for (int i = 0; i < matrix.numRows; i++) {
       //assert(suitors[i].size() <= b);
     }
-    queue = queue_next;
-    queue_next = vector<vertex_id_t>();
     if (DEBUG)
       cout << "Iteration complete" << endl;
   }
