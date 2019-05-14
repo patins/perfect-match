@@ -33,3 +33,4 @@ def make_bipartite_graph(graph_name, left_size, right_size, distribution_name, *
 make_graph("normal", 100, "normal", loc=5, scale=1)
 make_bipartite_graph("normal_bipartite", 100, 100, "normal", loc=5, scale=1)
 make_bipartite_graph("normal_bipartite_large", 1000, 1000, "normal", loc=5, scale=1)
+make_bipartite_graph("normal_bipartite_xl", 2000, 2000, "normal", loc=5, scale=1)

@@ -1,6 +1,6 @@
 CC = clang++
 TARGET = lock_free
-CFLAGS = -g
+CFLAGS = -g -O3 -std=c++11
 #-L/usr/local/Cellar/gperftools/2.7/lib/
 #CFLAGS = -O3
 LDFLAGS =  $(CFLAGS)

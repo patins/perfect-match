@@ -28,7 +28,6 @@ bool suitors_comparator(suitor_t &a, suitor_t &b) {
 }
 
 class Suitors {
-
   size_t _capacity;
 public:
   vector<suitor_t> _suitors;
@@ -64,7 +63,7 @@ public:
     return bump_result;
   }
   void add(suitor_t suitor) {
-    //assert(_suitors.size() < _capacity);
+    assert(_suitors.size() < _capacity);
     _suitors.push_back(suitor);
     push_heap(_suitors.begin(), _suitors.end(), suitors_comparator);
   }
@@ -102,7 +101,7 @@ struct match_update_t {
   bool remove;
 };
 
-bool weight_comparator(sparseEdge &a, sparseEdge &b) {
+bool weight_comparator(const sparseEdge &a, const sparseEdge &b) {
   return a.weight > b.weight;
 }
 
@@ -122,15 +121,15 @@ bool match_update_comparator(match_update_t &a, match_update_t &b) {
 double lock_free_matching(sparseMatrix &matrix, size_t b) {
   vector<vertex_id_t> queue;
   
-  vector<Suitors> suitors(matrix.numRows, Suitors(b));
+  vector<Suitors> suitors (matrix.numRows, Suitors(b));
 
-  for (vertex_id_t i = 0; i < matrix.numRows; i++)
+  // initialize the queue with all vertices
+  for (vertex_id_t i = 0; i < 2000; i++)
     queue.push_back(i);
 
   sparseEdge *edges_by_weight = new sparseEdge[matrix.numEdges];
   copy(matrix.edges, matrix.edges + matrix.numEdges, edges_by_weight);
   sort(edges_by_weight, edges_by_weight + matrix.numEdges, weight_comparator);
-  // put the highest weight edges at the front
 
   // while the queue isn't empty
   while (queue.size() != 0) {
@@ -140,6 +139,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
       size_t target_count = b - suitors[v].size();
       size_t proposed_count = 0;
 
+      // propose the best b matches for v
       for (size_t i = 0; i < matrix.numEdges && proposed_count < target_count; i++) {
         sparseEdge edge = edges_by_weight[i];
         vertex_id_t u;
@@ -157,6 +157,9 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
             .weight = edge.weight
           };
 
+          if (DEBUG)
+            cout << "PROP " << u << " " << v << endl;
+
           candidate_matches.push_back(candidate_match);
           proposed_count++;
         }
@@ -169,6 +172,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
 
     vector<match_update_t> match_updates;
 
+    // 2nd loop
     for (candidate_match_t candidate_match : candidate_matches) {
       suitor_t proposed_suitor = {
         .suitor_id = candidate_match.suitor_id,
@@ -209,24 +213,33 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     if (DEBUG)
       cout << "UPDATING STEP" << endl;
 
+    // 3rd loop
     for (match_update_t match_update : match_updates) {
       if (match_update.remove) {
         if (DEBUG)
           cout << "REMB " << match_update.source_id << " " << match_update.suitor_id << endl;
         suitors[match_update.source_id].remove(match_update.suitor_id);
       } else {
-        suitor_t added_suitor = {
-          .suitor_id = match_update.suitor_id,
-          .weight = match_update.weight
-        };
-        if (DEBUG)
-          cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
-        suitors[match_update.source_id].add(added_suitor);
+        if (!suitors[match_update.source_id].is_suitor(match_update.suitor_id)) {
+          suitor_t added_suitor = {
+            .suitor_id = match_update.suitor_id,
+            .weight = match_update.weight
+          };
+          if (DEBUG)
+            cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
+          suitors[match_update.source_id].add(added_suitor);
+        }
       }
     }
 
     for (int i = 0; i < matrix.numRows; i++) {
-      //assert(suitors[i].size() <= b);
+      if(suitors[i].size() > b) {
+        cout << "FAILED " << i << endl;
+        for (suitor_t j : suitors[i]._suitors) {
+          cout << j.suitor_id << " ";
+        }
+        assert(false);
+      }
     }
     if (DEBUG)
       cout << "Iteration complete" << endl;
