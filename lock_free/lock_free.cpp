@@ -4,9 +4,6 @@
 #include <algorithm>
 #include <cassert>
 #include "../utils/mtxReader.h"
-#include "pdqsort.h"
-#include <pstl/execution>
-#include <pstl/algorithm>
 #include "ips4o.hpp"
 #include <set>
 
