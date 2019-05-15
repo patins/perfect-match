@@ -13,16 +13,6 @@
 using namespace std;
 using namespace std::chrono;
 
-enum SortMode {
-  STL,
-  PSTL,
-  PDQ,
-  IPS,
-  PIPS
-};
-
-const auto SORT_MODE = SortMode::PIPS;
-
 const bool DEBUG = false;
 
 typedef uint32_t vertex_id_t;
@@ -117,12 +107,6 @@ struct match_update_t {
   bool remove;
 };
 
-bool weight_comparator(const sparseEdge &a, const sparseEdge &b) {
-  if (a.row == b.row)
-    return a.weight > b.weight;
-  return a.row < b.row;
-}
-
 bool candidate_match_comparator(const candidate_match_t &a, const candidate_match_t &b) {
   return a.source_id > b.source_id;
 }
@@ -134,10 +118,6 @@ bool match_update_comparator(const match_update_t &a, const match_update_t &b) {
     return a.suitor_id > b.suitor_id;
   }
   return a.source_id > b.source_id;
-}
-
-bool sparseEdge_weight_comparator(const sparseEdge &a, const vertex_id_t &b) {
-  return a.row < b;
 }
 
 int extract_column(int64_t x) {
@@ -284,67 +264,10 @@ void process_match_updates(sparseMatrix &matrix, vector<Suitors> &suitors, vecto
   }
 }
 
-int32_t float_to_comparable_integer(float f) {
-  uint32_t bits = *reinterpret_cast<uint32_t*>(&f);
-  uint32_t sign_bit = bits & 0x80000000ul;
-  // Modern compilers turn this IF-statement into a conditional move (CMOV) on x86,
-  // which is much faster than a branch that the cpu might mis-predict.
-  if (sign_bit) {
-    bits = 0x7FFFFFF - bits;
-  }
-
-  return static_cast<int32_t>(bits);
-}
-
-sparseEdge* phil_sort_2(sparseMatrix &matrix) {
-  int64_t *packed_ids_weights = new int64_t[matrix.numEdges];
-  for (size_t i = 0; i < matrix.numEdges; i++) {
-    //packed_ids_weights[i] = ((int64_t) float_to_comparable_integer(-matrix.edges[i].weight)) << 32;// ^ 0x80000000;
-    packed_ids_weights[i] = (int64_t) matrix.edges[i].row << 32;
-    packed_ids_weights[i] |= ((int64_t) i);
-  }
-
-  pdqsort(packed_ids_weights, packed_ids_weights + matrix.numEdges);
-
-  sparseEdge* by_weight = new sparseEdge[matrix.numEdges];
-  for(size_t i = 0; i < matrix.numEdges; i++)
-    by_weight[i] = matrix.edges[packed_ids_weights[i] & 0xFFFFFFFF];
-  delete[] packed_ids_weights;
-
-  return by_weight;
-
-  //for (size_t i = 0; i < matrix.numEdges; i++) {
-    //cout << matrix.edges[(packed_ids_weights[i] & 0xFFFFFFFFul)].weight << endl;
-  //}
-
-}
-
-template <class T, class F>
-void selected_sort (T* start, T* end, F comp) {
-  switch (SORT_MODE) {
-    case SortMode::STL:
-      sort(start, end, comp);
-      break;
-    case SortMode::PSTL:
-      sort(pstl::execution::par, start, end, comp);
-      break;
-    case PDQ:
-      pdqsort(start, end, comp);
-      break;
-    case SortMode::IPS:
-      ips4o::sort(start, end, comp);
-      break;
-    case SortMode::PIPS:
-      ips4o::parallel::sort(start, end, comp);
-      break;
-  }
-}
-
 int64_t build_adj(sparseEdge &edge) {
   int64_t weight_bits = *reinterpret_cast<int64_t*>(&edge.weight);
   return -((weight_bits << 32) | ((int64_t) edge.column));
 }
-
 
 double lock_free_matching(sparseMatrix &matrix, size_t b) {
   set<vertex_id_t> queue;
@@ -385,7 +308,6 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     partial_sort(adjacency_list[i].begin(), adjacency_list[i].begin()+b, adjacency_list[i].end());
   }
 
-  //selected_sort(matrix.edges, matrix.edges + matrix.numEdges, weight_comparator);
   stop = high_resolution_clock::now();
   auto edge_sort = duration_cast<microseconds>(stop - start);
 
@@ -399,7 +321,8 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     queue.clear();
 
     start = high_resolution_clock::now();
-    selected_sort(&candidate_matches.front(), &candidate_matches.back(), candidate_match_comparator);
+    if (candidate_matches.size() > 0)
+      ips4o::parallel::sort(&candidate_matches.front(), &candidate_matches.back(), candidate_match_comparator);
     stop = high_resolution_clock::now();
     match_sort += duration_cast<microseconds>(stop-start);
 
@@ -412,7 +335,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
 
     start = high_resolution_clock::now();
     if (match_updates.size() > 0)
-      selected_sort(&match_updates.front(), &match_updates.back(), match_update_comparator);
+      ips4o::parallel::sort(&match_updates.front(), &match_updates.back(), match_update_comparator);
     stop = high_resolution_clock::now();
     update_sort += duration_cast<microseconds>(stop-start);
 
