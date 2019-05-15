@@ -10,6 +10,7 @@
 #include <numeric>
 #include <vector>
 #include <list>
+#include <deque>
 
 using namespace std;
 using namespace std::chrono;
@@ -21,6 +22,16 @@ public:
         return n1.second<n2.second;
     }
 };
+
+int max_element_index(double *arr, int size) {
+  int max_index = 0;
+  for (int i = 0; i < size; i++) {
+    if (arr[i] > arr[max_index]) {
+      max_index = i;
+    }
+  }
+  return max_index;
+}
 
 void get_largest_elements_indices_row(denseMatrix* matrix, int row, int x, int* indices){
   /*
@@ -84,6 +95,7 @@ void  get_largest_elements_indices_col(denseMatrix* matrix, int col, list<int>* 
 
 }
 
+
 double lock_free_matching(denseMatrix* matrix, int B) {
   /*
   algorithm for finding a bipartite B-matching that maximizes 
@@ -103,73 +115,73 @@ double lock_free_matching(denseMatrix* matrix, int B) {
   
   double match_weight = 0;
 
-
   //there's definitely a more efficient way to add the numbers 0
   //through numRows to a queue and make these heaps 
   for(int i = 0; i< matrix -> numRows; i++){
     vertices_to_match.push_back(i);
     push_heap(vertices_to_match.begin(), vertices_to_match.end());
     vertex_sorted_edges[i] = (int*) malloc(B * sizeof(int));
-    priority_queue<pair<int,double>, vector<pair<int, double> >, compareWeight> q;
-    vertex_heap_pointers[i] = &q;
-  }
+  double match_weight = 0;
+  while (!vertices_to_match.empty()) {
+    //generate candidate matches for first vertex
+    //#pragma omp parallel for
+    for (int i: vertices_to_match) {
+      int num_candidates = B - vertex_heap_pointers[i].size();
+      int* candidate_vertices = (int*) malloc(num_candidates * sizeof(int)); 
+      get_largest_elements_indices_row(matrix, i, num_candidates, candidate_vertices);
+      vertex_sorted_edges[i] = candidate_vertices;
+      for (int j=0; j < num_candidates; j++) {
+        second_vertex_sorted_edges[candidate_vertices[j]].push_back(i);
+      }
+    }
 
-//   while(!vertices_to_match.empty()){
+    int** second_candidate_vertices = (int**) malloc(matrix->numColumns * sizeof(int*));
 
-  //generate candidate matches for first vertex
-//   #pragma omp parallel for
-       for(int i: vertices_to_match){
-           int num_candidates = B - (*vertex_heap_pointers[i]).size();
-           int candidate_vertices[num_candidates];
-           get_largest_elements_indices_row(matrix, i, num_candidates, candidate_vertices);
-           vertex_sorted_edges[i] = candidate_vertices;
-//           for(int j=0; j< num_candidates; j++){
-//               (*second_vertex_sorted_edges[candidate_vertices[j]]).push_back(i);
-//           }
-       }
-/*
-       int** second_candidate_vertices = (int**) malloc(matrix->numColumns * sizeof(int*));
- 
-       //sort candidate matches by second vertex
-       #pragma omp parallel for
-       for(int j=0; j< matrix-> numColumns; j++){
-           int size = (*second_vertex_sorted_edges[j]).size();
-           second_candidate_vertices[j] = (int *) malloc(sizeof(int) * size);
-           get_largest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j], second_candidate_vertices[j]);
-       }
-   
-  // can this be parallelized?  #pragma omp parallel for
-  
-  vector<int> new_vertices_to_match;
-  make_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
+    //sort candidate matches by second vertex
+    //#pragma omp parallel for
+    for (int j=0; j < matrix->numColumns; j++) {
+      int size = (second_vertex_sorted_edges[j]).size();
+      second_candidate_vertices[j] = (int *) malloc(sizeof(int) * size);
+      get_largest_elements_indices_col(matrix, j, second_vertex_sorted_edges[j], second_candidate_vertices[j]);
+    }
 
-  //update first and second vertex heaps
-   for(int j=0; j< matrix-> numColumns; j++){
-     for(int i=0; i < (*second_vertex_sorted_edges[j]).size(); i++){
-       int k = second_candidate_vertices[j][i]; 
-       int index = k * matrix-> numColumns + j;
-       if((*vertex_heap_pointers[j]).empty()){
-         (*vertex_heap_pointers[k]).push(make_pair(i, matrix->data[index]));
-         (*vertex_heap_pointers[k]).push(make_pair(j, matrix->data[index]));
-         match_weight += matrix -> data[index];
-       }
-       else if(matrix->data[index] < (*vertex_heap_pointers[j]).top().second){
-         pair<int, double> removed = (*vertex_heap_pointers[j]).top();
-         (*vertex_heap_pointers[j]).pop();
-         (*vertex_heap_pointers[j]).push(make_pair(k, matrix->data[index]));
-         new_vertices_to_match.push_back(removed.first);
-         push_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
-         (*vertex_heap_pointers[k]).push(make_pair(j, matrix->data[index]));
-         match_weight += matrix->data[index] - removed.second;
-       }
-     }
-   }
+    // can this be parallelized?  #pragma omp parallel for
+
+    vector<int> new_vertices_to_match;
+    make_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
+
+    //update first and second vertex heaps
+    for (int j=0; j< matrix-> numColumns; j++) {
+      for (int i=0; i < second_vertex_sorted_edges[j].size(); i++) {
+        int k = second_candidate_vertices[j][i]; 
+        int index = k * matrix-> numColumns + j;
+        if (vertex_heap_pointers[j].empty()) {
+          vertex_heap_pointers[k].push(make_pair(i, matrix->data[index]));
+          vertex_heap_pointers[k].push(make_pair(j, matrix->data[index]));
+          match_weight += matrix->data[index];
+        } else if(matrix->data[index] < vertex_heap_pointers[j].top().second) {
+          pair<int, double> removed = vertex_heap_pointers[j].top();
+          vertex_heap_pointers[j].pop();
+          vertex_heap_pointers[j].push(make_pair(k, matrix->data[index]));
+          new_vertices_to_match.push_back(removed.first);
+          push_heap(new_vertices_to_match.begin(), new_vertices_to_match.end());
+          vertex_heap_pointers[k].push(make_pair(j, matrix->data[index]));
+          match_weight += matrix->data[index] - removed.second;
+        }
+      }
+    }
 
     vertices_to_match = new_vertices_to_match;
-  }
-*/
-    return match_weight;
 
+    for (int i = 0; i < matrix->numRows; i++) {
+      second_vertex_sorted_edges[i].clear();
+    }
+  }
+
+  for (int i = 0; i < matrix->numRows; i++) {
+  }
+
+  return match_weight;
 }
 
 

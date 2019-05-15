@@ -7,10 +7,9 @@ typedef struct denseMatrix {
 
 // Stores individual edges (or entries of a dense matrix) and uses 0 indexing
 typedef struct sparseEdge {
-  double weight;
+  float weight;
   int row;
   int column;
-  bool matched;
 } sparseEdge;
 
 typedef struct sparseMatrix {

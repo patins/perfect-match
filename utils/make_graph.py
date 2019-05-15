@@ -36,4 +36,3 @@ V = [100, 400, 500, 1000, 1500, 2000, 2500]
 for i in V:
     make_bipartite_graph("lognormal_{}".format(i), int(i/2), int(i/2), "lognormal", mean=0, sigma=1)
 
-#make_bipartite_graph("normal_bipartite", 100, 100, "normal", loc=5, scale=1)
