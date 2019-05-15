@@ -347,6 +347,7 @@ int main(int argc, char **argv) {
 
   stop = high_resolution_clock::now();
   auto duration_d = duration_cast<microseconds>(stop - start);
+  cout << "b: " << argv[2] << endl;
   cout << "Time taken by dynamic: "
     << duration_d.count() << " microseconds" << endl;
     cout << "Time taken by greedy: "
