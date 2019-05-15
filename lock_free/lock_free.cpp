@@ -302,6 +302,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
   auto edge_build = duration_cast<microseconds>(stop - start);
 
   start = high_resolution_clock::now();
+  auto start_edge_sort = start;
 
   #pragma omp parallel for
   for (size_t i = edge_start_i; i < matrix.numRows; i++) {
@@ -360,7 +361,10 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     }
   }
 
-  cout << edge_build.count() << " " << edge_sort.count() << "," << match_gen.count() << "," << match_sort.count() << "," << update_gen.count() << "," << update_sort.count() << "," << update_exc.count() << endl;
+  stop = high_resolution_clock::now();
+  auto sort_to_verify = duration_cast<microseconds>(stop-start_edge_sort);
+
+  cout << edge_build.count() << "," << edge_sort.count() << "," << match_gen.count() << "," << match_sort.count() << "," << update_gen.count() << "," << update_sort.count() << "," << update_exc.count() << "," << sort_to_verify.count() << endl;
 
   double weight = 0;
   for (int i = 0; i < matrix.numRows; i++) {
