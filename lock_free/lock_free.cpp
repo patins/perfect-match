@@ -4,8 +4,24 @@
 #include <algorithm>
 #include <cassert>
 #include "../utils/mtxReader.h"
+#include "pdqsort.h"
+#include <pstl/execution>
+#include <pstl/algorithm>
+#include "ips4o.hpp"
+#include <set>
+
 using namespace std;
 using namespace std::chrono;
+
+enum SortMode {
+  STL,
+  PSTL,
+  PDQ,
+  IPS,
+  PIPS
+};
+
+const auto SORT_MODE = SortMode::PIPS;
 
 const bool DEBUG = false;
 
@@ -102,14 +118,16 @@ struct match_update_t {
 };
 
 bool weight_comparator(const sparseEdge &a, const sparseEdge &b) {
-  return a.weight > b.weight;
+  if (a.row == b.row)
+    return a.weight > b.weight;
+  return a.row < b.row;
 }
 
-bool candidate_match_comparator(candidate_match_t &a, candidate_match_t &b) {
+bool candidate_match_comparator(const candidate_match_t &a, const candidate_match_t &b) {
   return a.source_id > b.source_id;
 }
 
-bool match_update_comparator(match_update_t &a, match_update_t &b) {
+bool match_update_comparator(const match_update_t &a, const match_update_t &b) {
   if (a.source_id == b.source_id) {
     if (a.suitor_id == b.suitor_id)
       return a.remove < b.remove;
@@ -118,126 +136,293 @@ bool match_update_comparator(match_update_t &a, match_update_t &b) {
   return a.source_id > b.source_id;
 }
 
-void generate_candidate_matches(sparseMatrix &matrix, size_t b, vector<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches) {
-  for (vertex_id_t v : queue) {
-    size_t target_count = b - suitors[v].size();
-    size_t proposed_count = 0;
+bool sparseEdge_weight_comparator(const sparseEdge &a, const vertex_id_t &b) {
+  return a.row < b;
+}
 
-    // propose the best b matches for v
-    for (size_t i = 0; i < matrix.numEdges && proposed_count < target_count; i++) {
-      sparseEdge edge = matrix.edges[i];
-      vertex_id_t u;
-      if (edge.row == v)
-        u = edge.column;
-      else if (edge.column == v)
-        u = edge.row;
-      else
-        continue;
+int extract_column(int64_t x) {
+  return (-x) & 0xFFFFull;
+}
 
-      if (!suitors[u].is_suitor(v)) {
-        candidate_match_t candidate_match = {
-          .source_id = u,
-          .suitor_id = v,
-          .weight = edge.weight
-        };
+float extract_weight(int64_t x) {
+  int64_t y = (-x) >> 32;
+  return (*reinterpret_cast<float*>(&y));
+}
 
-        if (DEBUG)
-          cout << "PROP " << u << " " << v << endl;
+void generate_candidate_matches(vector<int64_t>* adjacency_lists, size_t b, set<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches) {
+  vector<vertex_id_t> queue_vector;
+  queue_vector.insert(queue_vector.end(), queue.begin(), queue.end());
 
-        candidate_matches.push_back(candidate_match);
-        proposed_count++;
+  #pragma omp parallel
+  {
+    vector<candidate_match_t> local_candidate_matches;
+
+    #pragma omp for
+    for (size_t i = 0; i < queue_vector.size(); i++) {
+      vertex_id_t v = queue_vector[i];
+      size_t target_count = b - suitors[v].size();
+      size_t proposed_count = 0;
+
+      // propose the best b matches for v
+      for (vector<int64_t>::iterator iterator = adjacency_lists[v].begin(); iterator < adjacency_lists[v].end() && proposed_count < target_count; iterator++) {
+        vertex_id_t u = extract_column(*iterator);
+        float weight = extract_weight(*iterator);
+        
+        if (!suitors[u].is_suitor(v)) {
+          candidate_match_t candidate_match = {
+            .source_id = u,
+            .suitor_id = v,
+            .weight = weight
+          };
+
+          if (DEBUG)
+            cout << "PROP " << u << " " << v << endl;
+
+          local_candidate_matches.push_back(candidate_match);
+          proposed_count++;
+        }
       }
+    }
+
+    #pragma omp critical
+    {
+      candidate_matches.insert(candidate_matches.end(), local_candidate_matches.begin(), local_candidate_matches.end());
     }
   }
 }
 
-void generate_match_updates(sparseMatrix &matrix, vector<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches, vector<match_update_t> &match_updates) {
-  for (candidate_match_t candidate_match : candidate_matches) {
-    suitor_t proposed_suitor = {
-      .suitor_id = candidate_match.suitor_id,
-      .weight = candidate_match.weight
-    };
-    bump_result_t bump_result = suitors[candidate_match.source_id].attempt_bump(proposed_suitor);
-    if (bump_result.inserted) {
-      if (DEBUG) {
-        if (bump_result.removed)
-          cout << "BUMP " << candidate_match.source_id << " " << candidate_match.suitor_id << " " << bump_result.removed_id << endl;
-        else
-          cout << "ADD  " << candidate_match.source_id << " " << candidate_match.suitor_id << endl;
-      }
+void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches, vector<match_update_t> &match_updates) {
+  /*vector<int> starting_points;
+  starting_points.push_back(0);
+  for (size_t i = 1; i < candidate_matches.size(); i++) {
+    if (candidate_matches[i].source_id != candidate_matches[i-1].source_id)
+      starting_points.push_back(i);
+  }
 
-      match_update_t insert_update = {
-        .source_id = candidate_match.suitor_id,
-        .suitor_id = candidate_match.source_id,
-        .weight = candidate_match.weight,
-        .remove = false
-      };
-      match_updates.push_back(insert_update);
+  //#pragma omp parallel
+  {
+    vector<match_update_t> local_match_updates;
+    std::set<vertex_id_t> local_queue;
+
+    #pragma omp for
+    for (size_t i = 0; i < starting_points.size(); i++) {
+      int starting_point = starting_points[i];
+      for (size_t j = starting_point; candidate_matches[starting_point].source_id == candidate_matches[j].source_id && j < candidate_matches.size(); j++) {
+        candidate_match_t candidate_match = candidate_matches[j];
+        */
+  for (candidate_match_t candidate_match : candidate_matches){
+
+        suitor_t proposed_suitor = {
+          .suitor_id = candidate_match.suitor_id,
+          .weight = candidate_match.weight
+        };
+        bump_result_t bump_result = suitors[candidate_match.source_id].attempt_bump(proposed_suitor);
+        if (bump_result.inserted) {
+          if (DEBUG) {
+            if (bump_result.removed)
+              cout << "BUMP " << candidate_match.source_id << " " << candidate_match.suitor_id << " " << bump_result.removed_id << endl;
+            else
+              cout << "ADD  " << candidate_match.source_id << " " << candidate_match.suitor_id << endl;
+          }
+
+          match_update_t insert_update = {
+            .source_id = candidate_match.suitor_id,
+            .suitor_id = candidate_match.source_id,
+            .weight = candidate_match.weight,
+            .remove = false
+          };
+          match_updates.push_back(insert_update);
+        }
+        if (bump_result.removed) {
+          match_update_t remove_update = {
+            .source_id = bump_result.removed_id,
+            .suitor_id = candidate_match.source_id,
+            .weight = 0,
+            .remove = true
+          };
+          match_updates.push_back(remove_update);
+          queue.insert(bump_result.removed_id);
+        }
+
+    /*
+      }
     }
-    if (bump_result.removed) {
-      match_update_t remove_update = {
-        .source_id = bump_result.removed_id,
-        .suitor_id = candidate_match.source_id,
-        .weight = 0,
-        .remove = true
-      };
-      match_updates.push_back(remove_update);
-      if (queue.size() > 0 && queue.back() != bump_result.removed_id)
-        queue.push_back(bump_result.removed_id);
-    }
+    #pragma omp critical
+    {
+      match_updates.insert(match_updates.end(), local_match_updates.begin(), local_match_updates.end());
+      queue.insert(local_queue.begin(), local_queue.end());
+    }*/
   }
 }
 
 void process_match_updates(sparseMatrix &matrix, vector<Suitors> &suitors, vector<match_update_t> &match_updates) {
-  for (match_update_t match_update : match_updates) {
-    if (match_update.remove) {
-      if (DEBUG)
-        cout << "REMB " << match_update.source_id << " " << match_update.suitor_id << endl;
-      suitors[match_update.source_id].remove(match_update.suitor_id);
-    } else {
-      if (!suitors[match_update.source_id].is_suitor(match_update.suitor_id)) {
-        suitor_t added_suitor = {
-          .suitor_id = match_update.suitor_id,
-          .weight = match_update.weight
-        };
+  vector<int> starting_points;
+  starting_points.push_back(0);
+  for (size_t i = 1; i < match_updates.size(); i++) {
+    if (match_updates[i].source_id != match_updates[i-1].source_id)
+      starting_points.push_back(i);
+  }
+
+  #pragma omp parallel for
+  for (size_t i = 0; i < starting_points.size(); i++) {
+    int starting_point = starting_points[i];
+    for (size_t j = starting_point; match_updates[starting_point].source_id == match_updates[j].source_id && j < match_updates.size(); j++) {
+      match_update_t match_update = match_updates[j];
+      if (match_update.remove) {
         if (DEBUG)
-          cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
-        suitors[match_update.source_id].add(added_suitor);
+          cout << "REMB " << match_update.source_id << " " << match_update.suitor_id << endl;
+        suitors[match_update.source_id].remove(match_update.suitor_id);
+      } else {
+        if (!suitors[match_update.source_id].is_suitor(match_update.suitor_id)) {
+          suitor_t added_suitor = {
+            .suitor_id = match_update.suitor_id,
+            .weight = match_update.weight
+          };
+          if (DEBUG)
+            cout << "ADDB " << match_update.source_id << " " << match_update.suitor_id << endl;
+          suitors[match_update.source_id].add(added_suitor);
+        }
       }
     }
   }
 }
 
+int32_t float_to_comparable_integer(float f) {
+  uint32_t bits = *reinterpret_cast<uint32_t*>(&f);
+  uint32_t sign_bit = bits & 0x80000000ul;
+  // Modern compilers turn this IF-statement into a conditional move (CMOV) on x86,
+  // which is much faster than a branch that the cpu might mis-predict.
+  if (sign_bit) {
+    bits = 0x7FFFFFF - bits;
+  }
+
+  return static_cast<int32_t>(bits);
+}
+
+sparseEdge* phil_sort_2(sparseMatrix &matrix) {
+  int64_t *packed_ids_weights = new int64_t[matrix.numEdges];
+  for (size_t i = 0; i < matrix.numEdges; i++) {
+    //packed_ids_weights[i] = ((int64_t) float_to_comparable_integer(-matrix.edges[i].weight)) << 32;// ^ 0x80000000;
+    packed_ids_weights[i] = (int64_t) matrix.edges[i].row << 32;
+    packed_ids_weights[i] |= ((int64_t) i);
+  }
+
+  pdqsort(packed_ids_weights, packed_ids_weights + matrix.numEdges);
+
+  sparseEdge* by_weight = new sparseEdge[matrix.numEdges];
+  for(size_t i = 0; i < matrix.numEdges; i++)
+    by_weight[i] = matrix.edges[packed_ids_weights[i] & 0xFFFFFFFF];
+  delete[] packed_ids_weights;
+
+  return by_weight;
+
+  //for (size_t i = 0; i < matrix.numEdges; i++) {
+    //cout << matrix.edges[(packed_ids_weights[i] & 0xFFFFFFFFul)].weight << endl;
+  //}
+
+}
+
+template <class T, class F>
+void selected_sort (T* start, T* end, F comp) {
+  switch (SORT_MODE) {
+    case SortMode::STL:
+      sort(start, end, comp);
+      break;
+    case SortMode::PSTL:
+      sort(pstl::execution::par, start, end, comp);
+      break;
+    case PDQ:
+      pdqsort(start, end, comp);
+      break;
+    case SortMode::IPS:
+      ips4o::sort(start, end, comp);
+      break;
+    case SortMode::PIPS:
+      ips4o::parallel::sort(start, end, comp);
+      break;
+  }
+}
+
+int64_t build_adj(sparseEdge &edge) {
+  int64_t weight_bits = *reinterpret_cast<int64_t*>(&edge.weight);
+  return -((weight_bits << 32) | ((int64_t) edge.column));
+}
+
+
 double lock_free_matching(sparseMatrix &matrix, size_t b) {
-  vector<vertex_id_t> queue;
+  set<vertex_id_t> queue;
   vector<Suitors> suitors (matrix.numRows, Suitors(b));
   vector<candidate_match_t> candidate_matches;
   candidate_matches.reserve(matrix.numRows * b);
   vector<match_update_t> match_updates;
   match_updates.reserve(matrix.numRows * b);
 
-  // initialize the queue with all vertices
-  for (vertex_id_t i = 0; i < 2000; i++)
-    queue.push_back(i);
+  chrono::microseconds match_gen(0);
+  chrono::microseconds match_sort(0);
+  chrono::microseconds update_gen(0);
+  chrono::microseconds update_sort(0);
+  chrono::microseconds update_exc(0);
 
-  // sort edges by weight
-  sort(matrix.edges, matrix.edges + matrix.numEdges, weight_comparator);
+  const int edge_start_i = matrix.numRows / 2;
+  for (vertex_id_t i = edge_start_i; i < matrix.numRows; i++)
+    queue.insert(i);
+
+  // requires non-negative edge weights
+  vector<int64_t> adjacency_list[matrix.numRows];
+
+  auto start = high_resolution_clock::now();
+
+  for (size_t i = 0; i < matrix.numEdges; i++) {
+    sparseEdge edge = matrix.edges[i];
+    int64_t adj = build_adj(edge);
+    adjacency_list[edge.row].push_back(adj);
+  }
+
+  auto stop = high_resolution_clock::now();
+  auto edge_build = duration_cast<microseconds>(stop - start);
+
+  start = high_resolution_clock::now();
+
+  #pragma omp parallel for
+  for (size_t i = edge_start_i; i < matrix.numRows; i++) {
+    partial_sort(adjacency_list[i].begin(), adjacency_list[i].begin()+b, adjacency_list[i].end());
+  }
+
+  //selected_sort(matrix.edges, matrix.edges + matrix.numEdges, weight_comparator);
+  stop = high_resolution_clock::now();
+  auto edge_sort = duration_cast<microseconds>(stop - start);
 
   // while the queue isn't empty
   while (queue.size() != 0) {
-    generate_candidate_matches(matrix, b, queue, suitors, candidate_matches);
+    start = high_resolution_clock::now();
+    generate_candidate_matches(adjacency_list, b, queue, suitors, candidate_matches);
+    stop = high_resolution_clock::now();
+    match_gen += duration_cast<microseconds>(stop-start);
 
     queue.clear();
 
-    sort(candidate_matches.begin(), candidate_matches.end(), candidate_match_comparator);
+    start = high_resolution_clock::now();
+    selected_sort(&candidate_matches.front(), &candidate_matches.back(), candidate_match_comparator);
+    stop = high_resolution_clock::now();
+    match_sort += duration_cast<microseconds>(stop-start);
 
+    start = high_resolution_clock::now();
     generate_match_updates(matrix, queue, suitors, candidate_matches, match_updates);
+    stop = high_resolution_clock::now();
+    update_gen += duration_cast<microseconds>(stop-start);
 
     candidate_matches.clear();
 
-    sort(match_updates.begin(), match_updates.end(), match_update_comparator);
+    start = high_resolution_clock::now();
+    if (match_updates.size() > 0)
+      selected_sort(&match_updates.front(), &match_updates.back(), match_update_comparator);
+    stop = high_resolution_clock::now();
+    update_sort += duration_cast<microseconds>(stop-start);
 
+    start = high_resolution_clock::now();
     process_match_updates(matrix, suitors, match_updates);
+    stop = high_resolution_clock::now();
+    update_exc += duration_cast<microseconds>(stop-start);
 
     match_updates.clear();
 
@@ -255,11 +440,14 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     }
   }
 
+  cout << edge_build.count() << " " << edge_sort.count() << "," << match_gen.count() << "," << match_sort.count() << "," << update_gen.count() << "," << update_sort.count() << "," << update_exc.count() << endl;
+
   double weight = 0;
   for (int i = 0; i < matrix.numRows; i++) {
     Suitors iSuitors = suitors[i];
     for (suitor_t j : iSuitors._suitors) {
-      assert(suitors[j.suitor_id].is_suitor(i));
+      if (DEBUG)
+        assert(suitors[j.suitor_id].is_suitor(i));
       weight += j.weight;
     }
   }

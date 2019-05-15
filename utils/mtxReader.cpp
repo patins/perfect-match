@@ -20,7 +20,7 @@ denseMatrix read_symmetric_dense_matrix_file(char *filename) {
   for (int l = 0; l < L; l++)
   {
   	int m, n;
-  	double data;
+  	float data;
   	fin >> m >> n >> data;
   	matrixData[(m-1) + (n-1)*M] = data;
     matrixData[(n-1) + (m-1)*N] = data;
@@ -48,13 +48,12 @@ sparseMatrix* read_symmetric_sparse_matrix_file(char *filename) {
   for (int l = 0; l < L; l++)
   {
   	int m, n;
-  	double data;
+  	float data;
     fin >> m >> n >> data;
   	sparseEdge edge;
     edge.weight = data;
     edge.row = m-1;
     edge.column = n-1;
-    edge.matched = false;
     matrixEdges[l] = edge;
   }
   fin.close();
