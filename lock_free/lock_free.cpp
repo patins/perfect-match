@@ -192,14 +192,14 @@ void generate_candidate_matches(vector<int64_t>* adjacency_lists, size_t b, set<
 }
 
 void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vector<Suitors> &suitors, vector<candidate_match_t> &candidate_matches, vector<match_update_t> &match_updates) {
-  /*vector<int> starting_points;
+  vector<int> starting_points;
   starting_points.push_back(0);
   for (size_t i = 1; i < candidate_matches.size(); i++) {
     if (candidate_matches[i].source_id != candidate_matches[i-1].source_id)
       starting_points.push_back(i);
   }
 
-  //#pragma omp parallel
+  #pragma omp parallel
   {
     vector<match_update_t> local_match_updates;
     std::set<vertex_id_t> local_queue;
@@ -209,8 +209,6 @@ void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vecto
       int starting_point = starting_points[i];
       for (size_t j = starting_point; candidate_matches[starting_point].source_id == candidate_matches[j].source_id && j < candidate_matches.size(); j++) {
         candidate_match_t candidate_match = candidate_matches[j];
-        */
-  for (candidate_match_t candidate_match : candidate_matches){
 
         suitor_t proposed_suitor = {
           .suitor_id = candidate_match.suitor_id,
@@ -231,7 +229,7 @@ void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vecto
             .weight = candidate_match.weight,
             .remove = false
           };
-          match_updates.push_back(insert_update);
+          local_match_updates.push_back(insert_update);
         }
         if (bump_result.removed) {
           match_update_t remove_update = {
@@ -240,18 +238,17 @@ void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vecto
             .weight = 0,
             .remove = true
           };
-          match_updates.push_back(remove_update);
-          queue.insert(bump_result.removed_id);
+          local_match_updates.push_back(remove_update);
+          local_queue.insert(bump_result.removed_id);
         }
 
-    /*
       }
     }
     #pragma omp critical
     {
       match_updates.insert(match_updates.end(), local_match_updates.begin(), local_match_updates.end());
       queue.insert(local_queue.begin(), local_queue.end());
-    }*/
+    }
   }
 }
 
