@@ -100,6 +100,9 @@ double lock_free_matching(denseMatrix* matrix, int B) {
   //array of pointers to store B-largest edges sorted by weight for each vertex
   int* vertex_sorted_edges[matrix-> numRows];
   list<int>* second_vertex_sorted_edges[matrix->numRows];
+  
+  double match_weight = 0;
+
 
   //there's definitely a more efficient way to add the numbers 0
   //through numRows to a queue and make these heaps 
@@ -107,23 +110,24 @@ double lock_free_matching(denseMatrix* matrix, int B) {
     vertices_to_match.push_back(i);
     push_heap(vertices_to_match.begin(), vertices_to_match.end());
     vertex_sorted_edges[i] = (int*) malloc(B * sizeof(int));
+    priority_queue<pair<int,double>, vector<pair<int, double> >, compareWeight> q;
+    vertex_heap_pointers[i] = &q;
   }
 
-  double match_weight = 0;
-  while(!vertices_to_match.empty()){
+//   while(!vertices_to_match.empty()){
 
   //generate candidate matches for first vertex
-   #pragma omp parallel for
+//   #pragma omp parallel for
        for(int i: vertices_to_match){
            int num_candidates = B - (*vertex_heap_pointers[i]).size();
-           int* candidate_vertices = (int*) malloc(num_candidates * sizeof(int)); 
+           int candidate_vertices[num_candidates];
            get_largest_elements_indices_row(matrix, i, num_candidates, candidate_vertices);
            vertex_sorted_edges[i] = candidate_vertices;
-           for(int j=0; j< num_candidates; j++){
-               (*second_vertex_sorted_edges[candidate_vertices[j]]).push_back(i);
-           }
+//           for(int j=0; j< num_candidates; j++){
+//               (*second_vertex_sorted_edges[candidate_vertices[j]]).push_back(i);
+//           }
        }
-
+/*
        int** second_candidate_vertices = (int**) malloc(matrix->numColumns * sizeof(int*));
  
        //sort candidate matches by second vertex
@@ -163,7 +167,7 @@ double lock_free_matching(denseMatrix* matrix, int B) {
 
     vertices_to_match = new_vertices_to_match;
   }
-
+*/
     return match_weight;
 
 }
