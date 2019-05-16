@@ -14,7 +14,6 @@
 using namespace std;
 using namespace std::chrono;
 
-#define NDEBUG
 #define LOWEST_MATCHED_EDGE(x) *(x->matched_edges->begin())
 #define OTHER_END(e, v, matrix) ((matrix->vertices[e->row] == v) ? (matrix->vertices[e->column]) : ( matrix->vertices[e->row]))
 

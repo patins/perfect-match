@@ -1,6 +1,6 @@
 CC = clang++
 TARGET = main
-CFLAGS = -g -ggdb -O3 -flto 
+CFLAGS = -g -ggdb -O3 -flto -DNDEBUG
 LDFLAGS =  $(CFLAGS)
 OBJECTS = \
 	$(TARGET).o \
