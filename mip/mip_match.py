@@ -39,8 +39,6 @@ def build_model(matrix, b):
     model.params.MIPGap = 0
     model.optimize()
 
-    print([(i, j) for (i, j, v) in upper_right if vMatches[(i, j)].X == 1])
-
 if __name__ == '__main__':
     import sys
     if len(sys.argv) != 3:
