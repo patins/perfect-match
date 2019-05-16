@@ -57,10 +57,9 @@ def make_incomplete_bipartite_graph(graph_name, left_size, right_size, distribut
     print(len(raw_values)) 
     print(num_edges/2, avg_degree)  
     matrix = coo_matrix((values, (row, col)), shape=(left_size+right_size, left_size+right_size))
-#    mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
+    mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
 
-make_incomplete_bipartite_graph("lognormal_incomplete_{}".format(2000), 1000, 1000, "lognormal", 0.5, mean=0, sigma=1) 
-#V = [100, 400, 500, 1000, 1500, 2000, 2500]
+V = [100, 400, 500, 1000, 1500, 2000, 2500]
 
-#for i in V:
-#    make_incomplete_bipartite_graph("lognormal_incomplete_{}".format(i), int(i/2), int(i/2), "lognormal", 0.5, mean=0, sigma=1) 
+for i in V:
+    make_incomplete_bipartite_graph("lognormal_incomplete_{}".format(i), int(i/2), int(i/2), "lognormal", 0.5, mean=0, sigma=1) 
