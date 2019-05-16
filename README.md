@@ -2,6 +2,7 @@
 
 ## Structure
 - `bSuitorIntel` - bSuitor code from Pothen's paper
-- `perfect_match` - our C++ codebase
-- `data` - weight data
-- `utils` - our utilities
+- `data` - matrix files used to test and benchmark
+- `utils` - our utilities, including a graph generator
+- `lock_free` - lockless implementation of bSuitor
+- `greedy` - greedy implementation (within this is the dynamic greedy code)
