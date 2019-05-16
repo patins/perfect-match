@@ -6,3 +6,4 @@
 - `utils` - our utilities, including a graph generator
 - `lock_free` - lockless implementation of bSuitor
 - `greedy` - greedy implementation (within this is the dynamic greedy code)
+- `mip` - Gurobi code for optimal solution
