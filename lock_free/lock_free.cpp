@@ -207,6 +207,7 @@ void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vecto
             .remove = false
           };
           local_match_updates.push_back(insert_update);
+          local_queue.insert(candidate_match.suitor_id);
         }
         if (bump_result.removed) {
           match_update_t remove_update = {
@@ -217,6 +218,7 @@ void generate_match_updates(sparseMatrix &matrix, set<vertex_id_t> &queue, vecto
           };
           local_match_updates.push_back(remove_update);
           local_queue.insert(bump_result.removed_id);
+          local_queue.insert(candidate_match.suitor_id);
         }
 
       }
@@ -236,6 +238,7 @@ void process_match_updates(sparseMatrix &matrix, vector<Suitors> &suitors, vecto
     if (match_updates[i].source_id != match_updates[i-1].source_id)
       starting_points.push_back(i);
   }
+
 
   #pragma omp parallel for
   for (size_t i = 0; i < starting_points.size(); i++) {
@@ -291,6 +294,10 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
 
   for (size_t i = 0; i < matrix.numEdges; i++) {
     sparseEdge edge = matrix.edges[i];
+    /*int temp = edge.row;
+    edge.row = edge.column;
+    edge.column = temp;*/
+    assert(edge.weight >= 0);
     int64_t adj = build_adj(edge);
     adjacency_list[edge.row].push_back(adj);
   }
@@ -303,7 +310,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
 
   #pragma omp parallel for
   for (size_t i = edge_start_i; i < matrix.numRows; i++) {
-    partial_sort(adjacency_list[i].begin(), adjacency_list[i].begin()+b, adjacency_list[i].end());
+    partial_sort(adjacency_list[i].begin(), adjacency_list[i].begin() + max((size_t) 0, min((size_t) b, (size_t) adjacency_list[i].size())), adjacency_list[i].end());
   }
 
   stop = high_resolution_clock::now();
@@ -319,8 +326,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     queue.clear();
 
     start = high_resolution_clock::now();
-    if (candidate_matches.size() > 0)
-      ips4o::parallel::sort(&candidate_matches.front(), &candidate_matches.back(), candidate_match_comparator);
+    ips4o::parallel::sort(candidate_matches.begin(), candidate_matches.end(), candidate_match_comparator);
     stop = high_resolution_clock::now();
     match_sort += duration_cast<microseconds>(stop-start);
 
@@ -332,8 +338,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     candidate_matches.clear();
 
     start = high_resolution_clock::now();
-    if (match_updates.size() > 0)
-      ips4o::parallel::sort(&match_updates.front(), &match_updates.back(), match_update_comparator);
+    ips4o::parallel::sort(match_updates.begin(), match_updates.end(), match_update_comparator);
     stop = high_resolution_clock::now();
     update_sort += duration_cast<microseconds>(stop-start);
 
@@ -369,7 +374,7 @@ double lock_free_matching(sparseMatrix &matrix, size_t b) {
     for (suitor_t j : iSuitors._suitors) {
       if (DEBUG)
         assert(suitors[j.suitor_id].is_suitor(i));
-      weight += j.weight;
+      weight += j.weight/2;
     }
   }
 
@@ -388,5 +393,5 @@ int main(int argc, char **argv) {
   auto duration = duration_cast<microseconds>(stop - start);
   cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
   cout << "Weight " << totalWeight << endl;
-  return 1;
+  return 0;
 }
