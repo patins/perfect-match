@@ -14,7 +14,6 @@
 using namespace std;
 using namespace std::chrono;
 
-#define NDEBUG
 #define LOWEST_MATCHED_EDGE(x) *(x->matched_edges->begin())
 #define OTHER_END(e, v, matrix) ((matrix->vertices[e->row] == v) ? (matrix->vertices[e->column]) : ( matrix->vertices[e->row]))
 
@@ -347,6 +346,7 @@ int main(int argc, char **argv) {
 
   stop = high_resolution_clock::now();
   auto duration_d = duration_cast<microseconds>(stop - start);
+  cout << "b: " << argv[2] << endl;
   cout << "Time taken by dynamic: "
     << duration_d.count() << " microseconds" << endl;
     cout << "Time taken by greedy: "
