@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.sparse import coo_matrix
+from scipy.sparse import random
 from scipy.io import mmwrite
+
 
 def make_graph(graph_name, graph_size, distribution_name, **dist_kwargs):
     seed = 42
@@ -13,7 +15,9 @@ def make_graph(graph_name, graph_size, distribution_name, **dist_kwargs):
     dist_kwargs['size'] = len(trow)
     values = np.tile(distribution(**dist_kwargs), 2)
     matrix = coo_matrix((values, (row, col)), shape=(graph_size, graph_size))
-    mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
+    mmwrite('../data/{}.mtx'.format(graph_name),
+     matrix,
+      "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
 
 def make_bipartite_graph(graph_name, left_size, right_size, distribution_name, **dist_kwargs):
     seed = 42
