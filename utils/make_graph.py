@@ -43,11 +43,12 @@ def make_incomplete_bipartite_graph(graph_name, left_size, right_size, distribut
     dist_kwargs['size'] = len(trow)
     values = np.tile(distribution(**dist_kwargs), 2)
 
-    for i in range(left_size):
-        for j in range(i, left_size):
-            if np.random.uniform() < prob_delete_edge:
-                values[i*left_size +j]= 0
-
+    for i in range(len(values)):
+        if np.random.uniform() < prob_delete_edge:
+            values[i] = 0
+    num_edges = sum([values[i] > 0 for i in range(len(values))])
+    avg_degree = num_edges/(left_size + right_size)
+    print(num_edges, avg_degree)  
     matrix = coo_matrix((values, (row, col)), shape=(left_size+right_size, left_size+right_size))
     mmwrite('../data/{}.mtx'.format(graph_name), matrix, "Matrix generated with {} distribution {}. Seed {}".format(distribution_name, dist_kwargs, seed))
 
