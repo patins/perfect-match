@@ -3,7 +3,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cassert>
-#include "../utils/mtxReader.h"
+#include "mtxReader.h"
 #include "ips4o.hpp"
 #include <set>
 
